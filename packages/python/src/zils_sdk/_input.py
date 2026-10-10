@@ -42,7 +42,7 @@ def error_message(error: Exception) -> str:
 
     if isinstance(error, TypeSafeAPIError):
         guidance = {
-            401: "Check your API key with zils login.",
+            401: "Check your API key with zils login --api-key.",
             402: "Check your Zils credit balance.",
             403: "This account cannot access the requested resource.",
             404: "Check the model name with zils models.",

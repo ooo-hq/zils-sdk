@@ -6,9 +6,10 @@ import json
 import sys
 from pathlib import Path
 
-from . import ZilsClient, ZilsError, __version__
+from . import ZilsClient, ZilsError, __version__, account, training_cli
 from ._config import DEFAULT_BASE_URL, setting, validate_key, validate_url
 from ._input import check_request, error_message, parse_json
+from ._training_http import TrainingError
 from .credentials import config_path, load_credentials, save_credentials
 
 MAX_INPUT = 1024 * 1024
@@ -27,17 +28,32 @@ def read_input(value: str) -> str:
     return text
 
 
+def api_key_source(value):
+    if value != "-":
+        raise argparse.ArgumentTypeError(
+            "Use --api-key alone or --api-key -; never pass a key value."
+        )
+    return value
+
+
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(prog="zils", description="Call Zils decision models.")
+    root = argparse.ArgumentParser(prog="zils", description="Train and call Zils decision models.")
     root.add_argument("--version", action="version", version=f"zils {__version__}")
     commands = root.add_subparsers(dest="command", required=True)
-    login = commands.add_parser("login", help="Validate and privately save a Zils API key")
+    login = commands.add_parser(
+        "login", help="Sign in through your browser (default), or save an inference API key"
+    )
     login.add_argument(
-        "--api-key", choices=["-"], help="Read the key from stdin; otherwise prompt privately"
+        "--api-key",
+        nargs="?",
+        const=True,
+        type=api_key_source,
+        metavar="-",
+        help="Prompt privately for an inference key; add - to read from stdin",
     )
     login.add_argument("--base-url", help="Zils API base URL (HTTPS, or HTTP loopback)")
     commands.add_parser(
-        "logout", help="Remove locally saved credentials; does not revoke the API key"
+        "logout", help="Remove saved account and key credentials; does not revoke remote sessions"
     )
     models = commands.add_parser("models", help="List models available to your key")
     decide = commands.add_parser("decide", help="Answer typed questions about one state")
@@ -51,6 +67,7 @@ def parser() -> argparse.ArgumentParser:
     source.add_argument("--state", help="Text or JSON state: inline, @file, or - for stdin")
     decide.add_argument("--questions", help="JSON questions: inline, @file, or - for stdin")
     decide.add_argument("--model", help="Model name; defaults to ZILS_DEFAULT_MODEL or zils-shared")
+    training_cli.add_parser(commands)
     return root
 
 
@@ -84,11 +101,22 @@ def request(args):
 
 
 def run(args) -> None:
+    if args.command == "train":
+        training_cli.run(args)
+        return
     if args.command == "logout":
+        account.logout()
         config_path().unlink(missing_ok=True)
         print("Saved credentials removed. Environment credentials are unchanged.", file=sys.stderr)
         return
     if args.command == "login":
+        if args.api_key is None:
+            if args.base_url is not None:
+                raise ValueError(
+                    "--base-url requires --api-key. Use ZILS_TRAINING_URL for account sign-in."
+                )
+            print(json.dumps(account.login()))
+            return
         if args.api_key == "-":
             key = sys.stdin.readline(8192).strip()
         elif sys.stdin.isatty():
@@ -126,6 +154,9 @@ def main() -> int:
     try:
         run(args)
         return 0
+    except TrainingError as error:
+        print(str(error), file=sys.stderr)
+        return 1
     except ZilsError as error:
         print(error_message(error), file=sys.stderr)
         return 1

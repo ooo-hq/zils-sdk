@@ -43,7 +43,8 @@ def build_server():
     server = ZilsMCP(
         "Zils",
         instructions="Call list_models to discover available Zils models. Use decide for typed "
-        "yes/no, choice, and score questions. Decisions may consume paid credit. No automatic retries.",
+        "yes/no, choice, and score questions. Configure an inference key with zils login --api-key. "
+        "Browser account login is for training. Decisions may consume paid credit. No automatic retries.",
         log_level="WARNING",
     )
 
