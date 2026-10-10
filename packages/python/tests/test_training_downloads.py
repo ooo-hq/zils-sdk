@@ -5,12 +5,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from training_fixture import MODEL, OWNER, ROUND, training_server
+from training_fixture import H2O_MODEL, MODEL, OWNER, ROUND, training_server
 from zils_sdk import training
 from zils_sdk._training_http import TrainingError
 
 
-def accepted(fixture):
+def accepted(fixture, model=MODEL):
     job_id = "44444444-4444-4444-8444-444444444444"
     fixture.artifacts = {
         "adapter_config.json": b'{"peft_type":"LORA"}',
@@ -18,9 +18,10 @@ def accepted(fixture):
         "model.json": json.dumps(
             {
                 "version": "zils-checkpoint/v1",
-                "model": MODEL["id"],
+                "model": model["id"],
                 "kind": "adapter",
                 "temperature": 1.25,
+                **({"profile": model} if model["id"] == training.H2O else {}),
             }
         ).encode(),
     }
@@ -33,9 +34,9 @@ def accepted(fixture):
     release = {
         "job_id": job_id,
         "round_id": ROUND,
-        "model": MODEL,
-        "base": MODEL["base"],
-        "base_revision": MODEL["base_revision"],
+        "model": model,
+        "base": model["base"],
+        "base_revision": model["base_revision"],
         **delivery,
     }
     fixture.artifacts["release.json"] = json.dumps(release).encode()
@@ -43,7 +44,7 @@ def accepted(fixture):
         "id": job_id,
         "name": "routing",
         "status": "completed",
-        "model": MODEL,
+        "model": model,
         "result": {"delivery": delivery},
         "workflow": {"state": "activating", "model_id": "premature-id"},
     }
@@ -59,6 +60,29 @@ class DownloadsTests(unittest.TestCase):
 
     def client(self, fixture):
         return training.TrainingClient(session=fixture.session, root=self.root / "receipts")
+
+    def test_h2o_download_preserves_native_profile(self):
+        with training_server() as fixture:
+            job, digest = accepted(fixture, H2O_MODEL)
+            result = self.client(fixture).download(job["id"], self.out)
+            self.assertEqual(result["sha256"], digest)
+            self.assertEqual(
+                json.loads((self.out / "model.json").read_text())["profile"], H2O_MODEL
+            )
+            metadata = json.loads((self.out / "model.json").read_text())
+            metadata["profile"]["base_revision"] = MODEL["base_revision"]
+            (self.out / "model.json").write_text(json.dumps(metadata))
+            records = [
+                [name, hashlib.sha256((self.out / name).read_bytes()).hexdigest()]
+                for name in training.ARTIFACTS[:-1]
+            ]
+            forged = hashlib.sha256(json.dumps(records, separators=(",", ":")).encode()).hexdigest()
+            job["result"]["delivery"]["sha256"] = forged
+            release = json.loads((self.out / "release.json").read_text())
+            release["sha256"] = forged
+            (self.out / "release.json").write_text(json.dumps(release))
+            with self.assertRaisesRegex(ValueError, "accepted job"):
+                training.verify_checkpoint(self.out, job, records, ROUND)
 
     def test_download_verifies_release_and_publishes_private_files(self):
         with training_server() as fixture:

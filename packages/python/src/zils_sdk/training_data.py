@@ -57,14 +57,14 @@ def _case(case):
     elif (
         kind == "choice"
         and isinstance(criteria, dict)
-        and 2 <= len(criteria) <= 16
+        and 2 <= len(criteria) <= 255
         and all(criteria)
     ):
         options = criteria
-    elif kind == "score" and isinstance(criteria, list) and 2 <= len(criteria) <= 16:
+    elif kind == "score" and isinstance(criteria, list) and 2 <= len(criteria) <= 255:
         options = [str(index) for index in range(len(criteria))]
     else:
-        raise ValueError("Use noul, choice or score questions with at most 16 outcomes.")
+        raise ValueError("Use noul, choice or score questions with at most 255 outcomes.")
     if case["label"] not in options:
         raise ValueError("Every label must identify an available question outcome.")
 

@@ -133,6 +133,23 @@ class TrainingDataTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 training_data.validate_policy(*args)
 
+    def test_native_outcome_limit(self):
+        case = json.loads(self.files["train"].read_text().splitlines()[0])
+        for kind in ("choice", "score"):
+            for count in (255, 256):
+                with self.subTest(kind=kind, count=count):
+                    criteria = (
+                        {str(i): "Option" for i in range(count)}
+                        if kind == "choice"
+                        else ["Option"] * count
+                    )
+                    row = {**case, "question": {"type": kind, "criteria": criteria}, "label": "254"}
+                    if count == 255:
+                        training_data._case(row)
+                    else:
+                        with self.assertRaises(ValueError):
+                            training_data._case(row)
+
 
 if __name__ == "__main__":
     unittest.main()

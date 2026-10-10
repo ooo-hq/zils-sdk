@@ -2,7 +2,7 @@
 
 Use the same Zils decision API from Python, JavaScript/TypeScript, a terminal, or
 an MCP-compatible agent. This first version lists available models and answers
-yes/no (`noul`), choice, and ordered-score questions. The CLI also supports [JevK5 text training](training-cli.md) with browser
+yes/no (`noul`), choice, and ordered-score questions. The CLI also supports [H2O and JevK5 text training](training-cli.md) with browser
 account sign-in. Image training, bulk jobs, miner/validator administration, and
 billing management remain in their existing APIs.
 
