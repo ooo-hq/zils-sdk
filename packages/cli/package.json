@@ -1,0 +1,20 @@
+{
+  "name": "@zils/cli",
+  "version": "0.1.0",
+  "description": "Sign in, train, and call Zils decision models from your terminal",
+  "license": "MIT",
+  "homepage": "https://zils.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ooo-hq/zils-sdk.git",
+    "directory": "packages/cli"
+  },
+  "publishConfig": { "access": "public", "registry": "https://registry.npmjs.org/" },
+  "engines": { "node": ">=20" },
+  "bin": { "zils": "bin/zils.cjs" },
+  "files": ["bin", "bootstrap.py", "vendor", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"],
+  "scripts": {
+    "prepack": "node scripts/build.cjs",
+    "test": "node --test test/installed.test.cjs"
+  }
+}

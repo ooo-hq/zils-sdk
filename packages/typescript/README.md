@@ -1,15 +1,13 @@
 # Zils TypeScript SDK
 
 Node.js 20+. Typed decisions using the existing Zils API and TypeSafe-compatible
-questions. This package is not yet published. From a clone of `ooo-hq/zils-sdk`:
+questions. Install it in your application:
 
 ```sh
-npm ci --prefix packages/typescript
-npm pack ./packages/typescript
+npm install @zils/sdk
 ```
 
-Install the resulting `zils-sdk-0.1.0.tgz` into your application. Set the server's
-`ZILS_API_KEY`, then use either ESM `import` or CommonJS `require`:
+Set the server's `ZILS_API_KEY`, then use either ESM `import` or CommonJS `require`:
 
 ```ts
 import { ZilsClient, choice } from '@zils/sdk';

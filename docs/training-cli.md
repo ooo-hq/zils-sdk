@@ -1,7 +1,7 @@
 # Train from the Zils CLI
 
-Install the unpublished Python package from this repository using the
-[developer-tools setup](developer-tools.md#install-from-a-fresh-clone). The CLI
+Install `@zils/cli` from npm using the
+[developer-tools setup](developer-tools.md#install-from-npm). The CLI
 supports H2O and JevK5 text datasets. Training execution remains in the hosted platform;
 no GPU or model installation is needed on your laptop.
 

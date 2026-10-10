@@ -2,8 +2,8 @@ PYTHON ?= python3
 PLATFORM_DIR ?= ../zils-platform
 .PHONY: check check-integration
 check:
-	$(PYTHON) -m ruff check packages/python
-	$(PYTHON) -m ruff format --check packages/python
+	$(PYTHON) -m ruff check packages/python packages/cli
+	$(PYTHON) -m ruff format --check packages/python packages/cli
 	npm --prefix packages/typescript test
 	$(PYTHON) -m unittest discover -s packages/python/tests -v
 
