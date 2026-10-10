@@ -4,22 +4,21 @@ Python and TypeScript clients, the `zils` terminal command, and a stdio MCP
 server for the Zils decision API, plus browser sign-in and text-training commands. Applications use HTTP; they do not need a
 miner, validator, model weights, or the hosted backend's source code.
 
-These packages are not published to PyPI or npm. Use the
-[setup and usage guide](docs/developer-tools.md) to install from this repository.
+Install the CLI from npm. It requires Node.js 20+ and Python 3.11+:
 
 ```sh
-python3 -m venv .venv-tools
-. .venv-tools/bin/activate
-python -m pip install "./packages/python[mcp]"
-zils login --api-key
-zils models
+npm install -g @zils/cli
+zils login
+zils train list
 ```
 
-Use Python 3.11+ and Node.js 20+. Windows activation is
-`.venv-tools\Scripts\Activate.ps1`. Login validates an existing Zils key and
-stores it privately for CLI and MCP use. SDK applications supply their own key.
-No Nace service account is needed. Automatic retries are off because a request
-whose reply is lost may already have been billed.
+Alternatively, run `npx @zils/cli login`. First use sets up the bundled Python
+implementation in a private cache; dependencies are downloaded from PyPI.
+Install the JavaScript/TypeScript application client with `npm install @zils/sdk`.
+The Python SDK/MCP package remains available from source; it is not on PyPI.
+See the [setup and usage guide](docs/developer-tools.md). No Nace service account
+is needed. Automatic retries are off because a request whose reply is lost may
+already have been billed.
 
 Use **`zils login`** for browser account sign-in, then `zils train` to submit and
 manage H2O and JevK5 text training. [Training CLI guide](docs/training-cli.md). Account

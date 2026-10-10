@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "description": "Typed JavaScript and TypeScript client for Zils decisions",
   "license": "MIT",
+  "homepage": "https://zils.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ooo-hq/zils-sdk.git",
+    "directory": "packages/typescript"
+  },
+  "publishConfig": { "access": "public", "registry": "https://registry.npmjs.org/" },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },

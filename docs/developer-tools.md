@@ -6,8 +6,26 @@ yes/no (`noul`), choice, and ordered-score questions. The CLI also supports [H2O
 account sign-in. Image training, bulk jobs, miner/validator administration, and
 billing management remain in their existing APIs.
 
-These packages are built from this repository. They have **not been published to
-PyPI or npm**. No model download, GPU, or Nace service account is required.
+The CLI and JavaScript/TypeScript SDK are distributed as `@zils/cli` and
+`@zils/sdk` on npm. The Python SDK/MCP package is installed from source and is
+not published on PyPI. No model download, GPU, or Nace service account is required.
+
+## Install from npm
+
+The CLI requires Node.js 20+ and Python 3.11+ with `venv` and `pip`:
+
+```sh
+npm install -g @zils/cli
+zils login
+zils train list
+```
+
+You can also use `npx @zils/cli login`. First use downloads the bundled Python
+CLI's dependencies from PyPI into a private cache; subsequent starts reuse it.
+No global Python packages are modified. Set `ZILS_PYTHON` to a Python executable
+path if it is not on your PATH. See the [CLI package guide](../packages/cli/README.md).
+
+For JavaScript/TypeScript applications, run `npm install @zils/sdk`.
 
 ## Install from a fresh clone
 

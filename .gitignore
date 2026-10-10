@@ -12,3 +12,4 @@ build/
 !.env.example
 models/
 .cache/
+packages/cli/vendor/
