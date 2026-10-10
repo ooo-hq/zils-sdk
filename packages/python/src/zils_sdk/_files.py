@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 import tempfile
 import time
 from contextlib import contextmanager
@@ -17,7 +18,23 @@ def atomic_json(path: Path, value: dict) -> None:
             stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        if sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+
+            move = ctypes.WinDLL("kernel32", use_last_error=True).MoveFileExW
+            move.argtypes = (wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD)
+            move.restype = wintypes.BOOL
+            # REPLACE_EXISTING | WRITE_THROUGH commits the rename before token exchange.
+            if not move(temporary, str(path), 0x1 | 0x8):
+                raise ctypes.WinError()
+        else:
+            os.replace(temporary, path)
+            directory = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
     finally:
         Path(temporary).unlink(missing_ok=True)
 

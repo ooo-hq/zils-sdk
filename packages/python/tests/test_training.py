@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
+from unittest.mock import patch
 
 from test_training_data import datasets
 from training_fixture import OWNER, training_server
@@ -58,6 +59,27 @@ class TrainingTests(unittest.TestCase):
             pending = list(self.receipts.glob("pending-*.json"))
             self.assertEqual(len(pending), 1)
             self.assertIsNone(json.loads(pending[0].read_text())["job_id"])
+
+    def test_submission_context_is_visible_before_job_creation(self):
+        with training_server() as fixture, redirect_stderr(io.StringIO()) as output:
+            client = self.client(fixture)
+            request = client._request
+
+            def checked_request(session, method, path, body=None):
+                if method == "POST" and path == "/v1/jobs":
+                    context = output.getvalue()
+                    for value in (OWNER, fixture.url, "routing", "0.8", "0.01"):
+                        self.assertIn(value, context)
+                    for split, file in self.files.items():
+                        self.assertIn(split, context)
+                        self.assertIn(str(file), context)
+                    self.assertIn("Training-data export: allowed", context)
+                    self.assertIn("training allowance/credit", context)
+                    self.assertNotIn("account-token", context)
+                return request(session, method, path, body)
+
+            with patch.object(client, "_request", side_effect=checked_request):
+                self.submit(client)
 
     def test_partial_failure_resumes_same_job_and_rejects_changed_files(self):
         with training_server() as fixture, redirect_stderr(io.StringIO()):

@@ -26,6 +26,10 @@ from the inference key in `~/.zils/config.json`. Files use mode `0600` on POSIX;
 on Windows, protect the directory with your account's filesystem permissions.
 `ZILS_CONFIG_PATH` changes the key filename and derives the adjacent account file.
 Tokens refresh under a process lock. An ambiguous refresh requires a fresh login.
+Session writes are synchronized before refresh; a failed local state write stops
+the exchange. POSIX filesystems must support directory synchronization. Windows
+uses a write-through replacement; native Windows and power-loss testing remain
+release checks.
 
 For another deployment, set `ZILS_TRAINING_URL` **before signing in**. The default
 is `https://training.zils.ai`. Changing that variable cannot send an existing
@@ -54,6 +58,10 @@ when you intend to submit training. These tiny examples establish syntax, not
 model quality; local tests do not spend credits or train on a live GPU.
 The export flag explicitly permits training data to be copied to approved workers.
 Both quality thresholds are required; acceptance may produce no qualifying model.
+Before creation, the CLI prints the active training account, service, files,
+thresholds and export consent to stderr. Submission uses that account's training
+allowance/credit under the service's rules; the CLI does not estimate a price.
+JSON results remain on stdout.
 
 Each UTF-8 JSONL case requires `id`, `group_id`, `family`, `state`, `question`, and
 `label`. Labels are strings: `"false"`/`"true"` for `noul`, a criterion key for
@@ -96,7 +104,7 @@ it skips confirmed uploads and refreshes expired storage grants. It never create
 a replacement job. Successful submission removes owned dataset snapshots but
 keeps the small receipt. Interrupted submissions retain snapshots privately.
 
-If the create response is lost, the CLI preserves a private `pending-*.json`
+If the create response is lost or fails, the CLI preserves a private `pending-*.json`
 receipt without guessing a job ID. Run `zils train list` and inspect the website
 before submitting again. A job discovered this way cannot automatically inherit
 an unknown receipt; inspect or cancel that run explicitly. No mutation is retried

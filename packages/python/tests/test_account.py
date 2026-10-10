@@ -7,6 +7,7 @@ import io
 import json
 import os
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -359,6 +360,62 @@ class AccountTests(unittest.TestCase):
                 if path.endswith("/oauth/token") and form["grant_type"] == ["refresh_token"]
             ]
             self.assertEqual(len(refreshes), 1)
+
+    @unittest.skipIf(os.name == "nt", "POSIX directory synchronization")
+    def test_refresh_commits_pending_and_rotated_session_before_returning(self):
+        from zils_sdk import account
+
+        with auth_server() as (url, _, _):
+            self.login(url)
+            saved = json.loads(self.session.read_text())
+            saved["expires_at"] = 0
+            self.session.write_text(json.dumps(saved))
+            synced = []
+            fsync = os.fsync
+            request = account.read_json
+
+            def sync(fd):
+                fsync(fd)
+                synced.append("directory" if stat.S_ISDIR(os.fstat(fd).st_mode) else "file")
+
+            def exchange(*args, **kwargs):
+                self.assertEqual(synced, ["file", "directory"])
+                self.assertTrue(json.loads(self.session.read_text())["refresh_pending"])
+                return request(*args, **kwargs)
+
+            with (
+                patch.dict(os.environ, {"ZILS_TRAINING_URL": url}),
+                patch("zils_sdk._files.os.fsync", side_effect=sync),
+                patch.object(account, "read_json", side_effect=exchange),
+            ):
+                account.credentials()
+            self.assertEqual(synced, ["file", "directory", "file", "directory"])
+            self.assertNotIn("refresh_pending", json.loads(self.session.read_text()))
+
+    @unittest.skipIf(os.name == "nt", "POSIX directory synchronization")
+    def test_failed_directory_sync_stops_refresh_before_exchange(self):
+        from zils_sdk import account
+
+        with auth_server() as (url, calls, _):
+            self.login(url)
+            saved = json.loads(self.session.read_text())
+            saved["expires_at"] = 0
+            self.session.write_text(json.dumps(saved))
+            fsync = os.fsync
+
+            def sync(fd):
+                if stat.S_ISDIR(os.fstat(fd).st_mode):
+                    raise OSError("Directory synchronization failed")
+                fsync(fd)
+
+            before = len(calls)
+            with (
+                patch.dict(os.environ, {"ZILS_TRAINING_URL": url}),
+                patch("zils_sdk._files.os.fsync", side_effect=sync),
+                self.assertRaises(OSError),
+            ):
+                account.credentials()
+            self.assertEqual(len(calls), before)
 
     def test_logout_removes_both_credentials_but_not_receipts(self):
         self.key.write_text("key")

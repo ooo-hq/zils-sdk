@@ -159,3 +159,40 @@ class PlatformTrainingTests(unittest.TestCase):
             self.assertEqual(result["sha256"], zils.checkpoint_hash(destination))
             job["result"]["workflow"] = {"state": "ready", "model_id": "zils-adapter-fixture"}
             self.assertEqual(client.get(job["id"])["model_id"], "zils-adapter-fixture")
+
+    def test_grant_failure_after_creation_retains_recovery_context(self):
+        from platform_training import training_service
+        from zils_platform.api_store import APIError
+
+        with (
+            training_service() as service,
+            patch.dict(
+                os.environ,
+                {
+                    "ZILS_CONFIG_PATH": str(self.root / "config.json"),
+                    "ZILS_TRAINING_URL": service.url,
+                },
+            ),
+            redirect_stderr(io.StringIO()),
+        ):
+            client = self.sign_in(service)
+            with (
+                patch.object(
+                    service.store, "signed", side_effect=APIError(409, "Storage conflict")
+                ),
+                self.assertRaisesRegex(TrainingError, "zils train list"),
+            ):
+                client.submit(
+                    "routing",
+                    self.files,
+                    {"min_accuracy": 0.8, "min_brier_improvement": 0.01},
+                    True,
+                )
+            self.assertEqual(len(service.store.tables["fez_training_jobs"]), 1)
+            self.assertEqual(len(client.list()["jobs"]), 1)
+            pending = list((self.root / "training").glob("pending-*.json"))
+            self.assertEqual(len(pending), 1)
+            receipt = json.loads(pending[0].read_text())
+            self.assertIsNone(receipt["job_id"])
+            for split, info in receipt["files"].items():
+                self.assertEqual(Path(info["path"]).read_bytes(), self.files[split].read_bytes())

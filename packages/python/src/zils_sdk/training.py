@@ -312,6 +312,23 @@ class TrainingClient:
                 "stage": "creating",
                 **prepared,
             }
+            print(
+                f"Training account: {session['account_id']}\n"
+                f"Training service: {session['base_url']}\n"
+                f"Job: {name}\n"
+                + "".join(
+                    f"{split}: {json.dumps(str(files[split]))} "
+                    f"({prepared['files'][split]['count']} cases, "
+                    f"{prepared['files'][split]['size']} bytes)\n"
+                    for split in training_data.SPLITS
+                )
+                + f"Minimum accuracy: {policy['min_accuracy']}; "
+                f"minimum Brier improvement: {policy['min_brier_improvement']}\n"
+                "Training-data export: allowed to approved workers.\n"
+                "Submission uses this account's training allowance/credit under the service's rules.",
+                file=sys.stderr,
+                flush=True,
+            )
             atomic_json(pending, receipt)
             retain = True
             try:
@@ -328,9 +345,7 @@ class TrainingClient:
                 )
                 job = _job(response)
             except (TrainingError, ValueError) as error:
-                if isinstance(error, TrainingError) and not error.uncertain:
-                    pending.unlink(missing_ok=True)
-                    retain = False
+                # Grant generation can fail after creation, including with a 4xx response.
                 raise TrainingError(
                     getattr(error, "status", None),
                     "Job creation could not be verified. Run zils train list before submitting again; no create request was retried.",
