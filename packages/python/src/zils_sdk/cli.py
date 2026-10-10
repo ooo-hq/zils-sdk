@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import ZilsClient, ZilsError, __version__, account
+from . import ZilsClient, ZilsError, __version__, account, training_cli
 from ._config import DEFAULT_BASE_URL, setting, validate_key, validate_url
 from ._input import check_request, error_message, parse_json
 from ._training_http import TrainingError
@@ -67,6 +67,7 @@ def parser() -> argparse.ArgumentParser:
     source.add_argument("--state", help="Text or JSON state: inline, @file, or - for stdin")
     decide.add_argument("--questions", help="JSON questions: inline, @file, or - for stdin")
     decide.add_argument("--model", help="Model name; defaults to ZILS_DEFAULT_MODEL or zils-shared")
+    training_cli.add_parser(commands)
     return root
 
 
@@ -100,6 +101,9 @@ def request(args):
 
 
 def run(args) -> None:
+    if args.command == "train":
+        training_cli.run(args)
+        return
     if args.command == "logout":
         account.logout()
         config_path().unlink(missing_ok=True)

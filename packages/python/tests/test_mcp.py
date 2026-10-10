@@ -74,7 +74,7 @@ class McpTests(unittest.TestCase):
                 self.assertEqual(len((await session.list_tools()).tools), 2)
                 missing = await session.call_tool("list_models", {})
                 self.assertTrue(missing.isError)
-                self.assertIn("zils login", missing.content[0].text)
+                self.assertIn("zils login --api-key", missing.content[0].text)
                 Path(env["ZILS_CONFIG_PATH"]).write_text(
                     json.dumps({"api_key": "valid-key", "base_url": service.url})
                 )

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "zils-sdk"
 version = "0.1.0"
-description = "Python SDK, CLI, and optional MCP server for Zils decisions"
+description = "Python SDK and MCP for Zils decisions, plus account and training CLI"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

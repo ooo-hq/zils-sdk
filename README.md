@@ -1,7 +1,7 @@
 # Zils SDKs, CLI, and MCP
 
 Python and TypeScript clients, the `zils` terminal command, and a stdio MCP
-server for the Zils decision API. Applications use HTTP; they do not need a
+server for the Zils decision API, plus browser sign-in and text-training commands. Applications use HTTP; they do not need a
 miner, validator, model weights, or the hosted backend's source code.
 
 These packages are not published to PyPI or npm. Use the
@@ -11,7 +11,7 @@ These packages are not published to PyPI or npm. Use the
 python3 -m venv .venv-tools
 . .venv-tools/bin/activate
 python -m pip install "./packages/python[mcp]"
-zils login
+zils login --api-key
 zils models
 ```
 
@@ -20,6 +20,10 @@ Use Python 3.11+ and Node.js 20+. Windows activation is
 stores it privately for CLI and MCP use. SDK applications supply their own key.
 No Nace service account is needed. Automatic retries are off because a request
 whose reply is lost may already have been billed.
+
+Use **`zils login`** for browser account sign-in, then `zils train` to submit and
+manage JevK5 text training. [Training CLI guide](docs/training-cli.md). Account
+sessions and inference API keys are separate; browser login does not create a key.
 
 ## Checks
 

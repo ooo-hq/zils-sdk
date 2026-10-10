@@ -1,0 +1,129 @@
+# Train from the Zils CLI
+
+Install the unpublished Python package from this repository using the
+[developer-tools setup](developer-tools.md#install-from-a-fresh-clone). The CLI
+supports JevK5 text datasets. Training execution remains in the hosted platform;
+no GPU or model installation is needed on your laptop.
+
+## Sign in
+
+```sh
+zils login
+```
+
+Your browser opens Zils account sign-in and asks you to approve the CLI. Use your
+existing invited account. Keep the terminal open and open email links on the same
+computer. The fixed local callback uses port **43187**; a remote/headless shell is
+not supported by this flow. Sign-in expires after ten minutes.
+
+Browser sign-in requires the operator to enable the matching
+[platform configuration](https://github.com/ooo-hq/zils-platform/blob/main/docs/cli-training.md)
+and [website approval page](https://github.com/ooo-hq/zils-web/blob/main/docs/cli-sign-in.md).
+The code is not evidence that a hosted service has enabled this beta OAuth flow.
+
+The account session is saved privately to `~/.zils/config.account.json`, separate
+from the inference key in `~/.zils/config.json`. Files use mode `0600` on POSIX;
+on Windows, protect the directory with your account's filesystem permissions.
+`ZILS_CONFIG_PATH` changes the key filename and derives the adjacent account file.
+Tokens refresh under a process lock. An ambiguous refresh requires a fresh login.
+
+For another deployment, set `ZILS_TRAINING_URL` **before signing in**. The default
+is `https://training.zils.ai`. Changing that variable cannot send an existing
+account token to a different service. `ZILS_BASE_URL` configures inference only.
+
+Browser login does not issue an inference key. Use `zils login --api-key` to
+privately enter an existing key, or `zils login --api-key -` to read from stdin.
+`zils logout` removes both local credential types, retaining recovery receipts.
+It does not revoke remote sessions/keys, delete jobs, or unset environment keys.
+
+## Submit three reviewed splits
+
+From the repository root, this synthetic example demonstrates the input format:
+
+```sh
+zils train submit --name ticket-routing \
+  --train examples/training/train.jsonl \
+  --calibration examples/training/calibration.jsonl \
+  --test examples/training/test.jsonl \
+  --min-accuracy 0.8 --min-brier-improvement 0.01 \
+  --allow-training-data-export --json
+```
+
+This command creates a real job when connected to an enabled service. Run it only
+when you intend to submit training. These tiny examples establish syntax, not
+model quality; local tests do not spend credits or train on a live GPU.
+The export flag explicitly permits training data to be copied to approved workers.
+Both quality thresholds are required; acceptance may produce no qualifying model.
+
+Each UTF-8 JSONL case requires `id`, `group_id`, `family`, `state`, `question`, and
+`label`. Labels are strings: `"false"`/`"true"` for `noul`, a criterion key for
+`choice`, or a zero-based index string for `score`. Questions support at most
+16 outcomes. The server checks model token limits; the CLI never truncates data.
+
+IDs must be globally unique. Related source groups and identical state/question
+pairs must stay in one split. Calibration and test families must match and occur
+in training. Limits are 128 MiB per split and 128 KiB per case. Image cases,
+invalid JSON, duplicate keys, and non-finite numbers are rejected before creating
+a job. Private snapshots ensure uploaded bytes match the validated file hashes.
+
+## Follow and recover a run
+
+Copy the returned job UUID into `JOB_ID`:
+
+```sh
+zils train list --json
+zils train status JOB_ID
+zils train status JOB_ID --watch
+```
+
+Watch polls every five seconds until training completes or fails. Ctrl+C stops
+watching without cancelling the job. An accepted result may still be activating;
+a model ID appears only after API readiness is confirmed. A completed run can
+also have `no_qualifying_model`, with no downloadable model.
+
+If uploads stop, resume the **same** job with the unchanged source files:
+
+```sh
+zils train resume JOB_ID \
+  --train examples/training/train.jsonl \
+  --calibration examples/training/calibration.jsonl \
+  --test examples/training/test.jsonl --json
+```
+
+Receipts under the private configuration directory's `training/` folder bind the
+job to its account, service and exact input hashes. Resume requires that receipt;
+it skips confirmed uploads and refreshes expired storage grants. It never creates
+a replacement job. Successful submission removes owned dataset snapshots but
+keeps the small receipt. Interrupted submissions retain snapshots privately.
+
+If the create response is lost, the CLI preserves a private `pending-*.json`
+receipt without guessing a job ID. Run `zils train list` and inspect the website
+before submitting again. A job discovered this way cannot automatically inherit
+an unknown receipt; inspect or cancel that run explicitly. No mutation is retried
+automatically. Private pending snapshots remain until you resolve the attempt.
+
+## Download or cancel
+
+```sh
+zils train download JOB_ID --out ./accepted-model --json
+zils train cancel JOB_ID
+# Explicit confirmation for scripts:
+zils train cancel JOB_ID --yes --json
+```
+
+Downloads require an accepted JevK5 result. The CLI verifies provider/job/file
+paths, release identity, model metadata and the backend-compatible checkpoint
+SHA-256 before publishing four files to a **new** directory. Existing paths are
+never overwritten. The filesystem must support hard links within the destination's
+parent. Transfers are bounded to 512 MiB of checkpoint data plus a 1 MiB release
+record. Files are saved privately. Verification does not execute model code.
+
+Cancellation asks for confirmation in a terminal; scripts require `--yes`.
+Already running workers may finish, and cancellation does not promise a refund
+or undo costs already incurred. Use status to confirm the recorded outcome.
+
+All commands accept `--json` and `--timeout SECONDS` (default 30). Download/upload
+transfers also have a 120-second per-file ceiling. Results go to stdout; progress
+and errors go to stderr. Exit codes are 0 for a completed CLI operation, 1 for a
+service/transfer failure, 2 for invalid input/configuration, and 130 for Ctrl+C.
+A completed CLI operation does not imply that training passed its quality targets.

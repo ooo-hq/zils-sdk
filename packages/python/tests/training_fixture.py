@@ -83,6 +83,8 @@ def training_server():
                 and self.headers.get("Authorization") != "Bearer account-token"
             ):
                 return self.reply(401, {})
+            if self.command == "GET" and path == "/v1/account":
+                return self.reply(200, {"account_id": OWNER})
             if self.command == "GET" and path == "/v1/jobs":
                 return self.reply(200, {"jobs": list(fixture.jobs.values()), "models": []})
             if self.command == "POST" and path == "/v1/jobs":

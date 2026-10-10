@@ -262,7 +262,10 @@ def verify_checkpoint(directory, job, records, round_id):
 
 
 class TrainingClient:
-    def __init__(self, *, session=None, root=None):
+    def __init__(self, *, session=None, root=None, timeout=30):
+        if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("Timeout must be a finite positive number of seconds.")
+        self.timeout = timeout
         self._session = session
         self.root = Path(root) if root is not None else config_path().resolve().parent / "training"
 
@@ -272,7 +275,11 @@ class TrainingClient:
 
     def _request(self, session, method, path, body=None):
         return read_json(
-            method, session["base_url"] + path, token=session["access_token"], body=body
+            method,
+            session["base_url"] + path,
+            token=session["access_token"],
+            body=body,
+            timeout=self.timeout,
         )
 
     def _save(self, receipt):
@@ -371,11 +378,11 @@ class TrainingClient:
             if grant == {"uploaded": True}:
                 continue
             info = receipt["files"][split]
-            deadline = time.monotonic() + 120
+            deadline = time.monotonic() + min(120, self.timeout)
             try:
                 with (
                     Path(info["path"]).open("rb") as source,
-                    httpx.Client(follow_redirects=False, timeout=120) as client,
+                    httpx.Client(follow_redirects=False, timeout=min(120, self.timeout)) as client,
                 ):
                     with client.stream(
                         "PUT",
@@ -500,7 +507,9 @@ class TrainingClient:
             directory = Path(temporary)
             records, size = [], 0
             deadline = time.monotonic() + 4 * TRANSFER_TIMEOUT
-            with httpx.Client(follow_redirects=False, timeout=TRANSFER_TIMEOUT) as client:
+            with httpx.Client(
+                follow_redirects=False, timeout=min(TRANSFER_TIMEOUT, self.timeout)
+            ) as client:
                 for name in ARTIFACTS:
                     maximum = (
                         MAX_RELEASE_BYTES
@@ -515,7 +524,7 @@ class TrainingClient:
                         grants[name],
                         directory / name,
                         maximum,
-                        min(deadline, time.monotonic() + TRANSFER_TIMEOUT),
+                        min(deadline, time.monotonic() + min(TRANSFER_TIMEOUT, self.timeout)),
                     )
                     if name != "release.json":
                         size += count

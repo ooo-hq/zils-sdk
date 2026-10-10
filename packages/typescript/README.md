@@ -1,7 +1,7 @@
 # Zils TypeScript SDK
 
 Node.js 20+. Typed decisions using the existing Zils API and TypeSafe-compatible
-questions. This package is not yet published. From a clone of `ooo-hq/zils`:
+questions. This package is not yet published. From a clone of `ooo-hq/zils-sdk`:
 
 ```sh
 npm ci --prefix packages/typescript
@@ -35,4 +35,4 @@ Browser use is disabled to avoid exposing API keys. CLI login files are not read
 question-specific answer types. `usage.input_tokens` counts model resources;
 optional `usage.billable_input_tokens` is Zils's logical billing count.
 
-[Complete guide](https://github.com/ooo-hq/zils/blob/main/docs/developer-tools.md).
+[Complete guide](https://github.com/ooo-hq/zils-sdk/blob/main/docs/developer-tools.md).

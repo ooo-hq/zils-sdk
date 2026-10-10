@@ -2,8 +2,9 @@
 
 Use the same Zils decision API from Python, JavaScript/TypeScript, a terminal, or
 an MCP-compatible agent. This first version lists available models and answers
-yes/no (`noul`), choice, and ordered-score questions. Training, bulk jobs, account
-management, and billing management remain in their existing APIs.
+yes/no (`noul`), choice, and ordered-score questions. The CLI also supports [JevK5 text training](training-cli.md) with browser
+account sign-in. Image training, bulk jobs, miner/validator administration, and
+billing management remain in their existing APIs.
 
 These packages are built from this repository. They have **not been published to
 PyPI or npm**. No model download, GPU, or Nace service account is required.
@@ -37,13 +38,17 @@ The installed import is `@zils/sdk`; both `import` and `require` are supported.
 
 ## Credentials and defaults
 
+Bare `zils login` opens your browser to sign in with your Zils account for training.
+It does not create an inference API key. `zils login --api-key` explicitly selects
+the private key prompt described below. See [training sign-in](training-cli.md).
+
 Create a customer API key in the Zils dashboard or through the
 [key-management API](https://github.com/ooo-hq/zils-platform/blob/main/docs/decision-api.md#create-a-key-and-call-the-model).
-`zils login` validates an existing key and stores it locally; it does not create
+`zils login --api-key` validates an existing key and stores it locally; it does not create
 an account or issue a key.
 
 ```sh
-zils login
+zils login --api-key
 zils models
 ```
 
@@ -51,7 +56,7 @@ Login prompts without displaying the key. It checks `GET /v1/models` before
 atomically saving `~/.zils/config.json`, mode `0600` on POSIX. On Windows, protect
 the directory with your account's filesystem permissions. Failed validation
 leaves previous credentials intact. CLI and MCP read the same file. `zils logout`
-removes that file; it does not revoke the key or unset environment variables.
+removes both the saved key and browser account session; it does not revoke the key or unset environment variables.
 
 | Setting | Purpose and default |
 | --- | --- |
@@ -69,7 +74,7 @@ server; the TypeScript client rejects browser use.
 
 Use the base URL **without** `/v1/systemone`. Remote endpoints require HTTPS;
 HTTP loopback URLs are accepted for local development. Redirects are not followed.
-For another Zils deployment, use `zils login --base-url https://YOUR_HOST/decision`.
+For another Zils deployment, use `zils login --api-key --base-url https://YOUR_HOST/decision`.
 For noninteractive login, pipe a key from your secret manager into
 `zils login --api-key -`; do not place the key directly in command arguments.
 
@@ -168,7 +173,7 @@ answers, and error classes come from the compatible TypeSafe client.
 
 ## MCP
 
-After installing the Python MCP extra, run `zils login` in the same user account
+After installing the Python MCP extra, run `zils login --api-key` in the same user account
 as your agent. Configure an MCP host to launch the installed `zils-mcp` executable
 over stdio. Use the absolute path printed by `command -v zils-mcp` (Windows:
 `where.exe zils-mcp`). A host configuration accepting `mcpServers` looks like:
