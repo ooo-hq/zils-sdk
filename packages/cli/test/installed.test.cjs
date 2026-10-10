@@ -5,7 +5,7 @@ const { spawn } = require('node:child_process');
 const { createServer } = require('node:http');
 const { once } = require('node:events');
 const { mkdtempSync, readFileSync, rmSync } = require('node:fs');
-const { tmpdir } = require('node:os');
+const { EOL, tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 const { test } = require('node:test');
 
@@ -31,7 +31,7 @@ test('installed CLI bootstraps once, preserves stdin/JSON/exit codes, and reuses
   Object.assign(env, { XDG_CACHE_HOME: join(directory, 'cache'), ZILS_CONFIG_PATH: join(directory, 'config.json') });
   const boot = await Promise.all([run(['--version'], env), run(['train', 'submit', '--help'], env)]);
   for (const result of boot) assert.equal(result.code, 0, result.stderr);
-  assert.equal(boot[0].stdout, 'zils 0.1.0\n');
+  assert.equal(boot[0].stdout, `zils 0.1.0${EOL}`);
   assert.match(boot[1].stdout, /--min-brier-improvement/);
   assert.equal(boot.filter(result => result.stderr.includes('Setting up Zils')).length, 1);
 
