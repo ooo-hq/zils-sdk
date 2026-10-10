@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from test_training_data import datasets
-from training_fixture import OWNER, training_server
+from training_fixture import H2O_MODEL, OWNER, training_server
 from zils_sdk import training
 from zils_sdk._training_http import TrainingError
 
@@ -28,6 +28,15 @@ class TrainingTests(unittest.TestCase):
         return client.submit(
             "routing", self.files, {"min_accuracy": 0.8, "min_brier_improvement": 0.01}, True
         )
+
+    def test_submit_uses_h2o_config_and_rejects_unpinned_revision(self):
+        with patch("training_fixture.MODEL", H2O_MODEL), training_server() as fixture:
+            result = self.submit(self.client(fixture))
+            self.assertEqual(fixture.jobs[result["id"]]["model"], H2O_MODEL)
+            fixture.session["config"]["model"] = {**H2O_MODEL, "base_revision": "0" * 40}
+            with self.assertRaisesRegex(ValueError, "pinned"):
+                self.submit(self.client(fixture))
+            self.assertEqual(len(fixture.jobs), 1)
 
     def test_submit_creates_once_uploads_snapshots_without_bearer_and_submits(self):
         with training_server() as fixture, redirect_stderr(io.StringIO()) as output:

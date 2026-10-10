@@ -21,7 +21,11 @@ from ._input import parse_json
 from ._training_http import TrainingError, read_json
 from .credentials import config_path
 
-MODEL_ID = "jevk5-4b-v0.3"
+H2O = "h2o-lightning-4b-v1.2.3"
+MODEL_PINS = {
+    "jevk5-4b-v0.3": ("alibiserikbay/JevK5", "c4f7fdb3aeab5582336406e78d3bef11bf98833d"),
+    H2O: ("h2oai/h2o-lightning-4b", "acaf0d4ea251e54de928c75ef4352670d33192d3"),
+}
 ARTIFACTS = ("adapter_config.json", "adapter_model.safetensors", "model.json", "release.json")
 MAX_ARTIFACT_BYTES = 512 * 1024 * 1024
 MAX_RELEASE_BYTES = 1024 * 1024
@@ -37,6 +41,15 @@ STATUSES = {
     "completed",
     "failed",
 }
+
+
+def supported_model(model):
+    return (
+        isinstance(model, dict)
+        and isinstance(model.get("id"), str)
+        and model["id"] in MODEL_PINS
+        and (model.get("base"), model.get("base_revision")) == MODEL_PINS[model["id"]]
+    )
 
 
 def validate_grant(descriptor: dict, config: dict, *, job_id: str, filename: str, use: str) -> dict:
@@ -238,16 +251,17 @@ def verify_checkpoint(directory, job, records, round_id):
             or release["model"] != model
             or release["base"] != model["base"]
             or release["base_revision"] != model["base_revision"]
-            or model["id"] != MODEL_ID
-            or model["base"] != "alibiserikbay/JevK5"
-            or model["base_revision"] != "c4f7fdb3aeab5582336406e78d3bef11bf98833d"
+            or not supported_model(model)
         ):
             raise ValueError("Release identity mismatch")
         temperature = metadata["temperature"]
         if (
-            set(metadata) - {"version", "model", "kind", "temperature", "calibration"}
+            set(metadata)
+            - {"version", "model", "kind", "temperature", "calibration"}
+            - ({"profile"} if model["id"] == H2O else set())
             or metadata["version"] != "zils-checkpoint/v1"
-            or metadata["model"] != MODEL_ID
+            or metadata["model"] != model["id"]
+            or (model["id"] == H2O and metadata.get("profile") != model)
             or metadata["kind"] != "adapter"
             or type(temperature) not in (int, float)
             or not math.isfinite(temperature)
@@ -302,8 +316,10 @@ class TrainingClient:
         try:
             session = self._connect()
             model = session["config"].get("model")
-            if not isinstance(model, dict) or model.get("id") != MODEL_ID:
-                raise ValueError("CLI training currently requires the JevK5 text-training profile.")
+            if not supported_model(model):
+                raise ValueError(
+                    "CLI training requires a supported pinned H2O or JevK5 text profile."
+                )
             receipt = {
                 "version": 1,
                 "job_id": None,
@@ -502,9 +518,9 @@ class TrainingClient:
         if (
             job["status"] != "completed"
             or (job.get("result") or {}).get("delivery", {}).get("status") != "accepted"
-            or (job.get("model") or {}).get("id") != MODEL_ID
+            or not supported_model(job.get("model"))
         ):
-            raise ValueError("This job has no accepted JevK5 model to download.")
+            raise ValueError("This job has no accepted supported text model to download.")
         grants = self._request(session, "GET", f"/v1/jobs/{job_id}/downloads").get("downloads")
         if not isinstance(grants, dict) or set(grants) != set(ARTIFACTS):
             raise ValueError("The service returned an unexpected model file list.")

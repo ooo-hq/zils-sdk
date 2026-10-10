@@ -32,6 +32,6 @@ The CLI and MCP share `~/.zils/config.json`; `ZILS_CONFIG_PATH` overrides its pa
 
 [Complete guide](https://github.com/ooo-hq/zils-sdk/blob/main/docs/developer-tools.md).
 
-For browser account sign-in use `zils login`. For JevK5 text training, see the
+For browser account sign-in use `zils login`. For H2O and JevK5 text training, see the
 [training CLI guide](https://github.com/ooo-hq/zils-sdk/blob/main/docs/training-cli.md).
 Browser login does not create an inference key.

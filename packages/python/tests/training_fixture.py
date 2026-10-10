@@ -17,6 +17,17 @@ MODEL = {
     "base": "alibiserikbay/JevK5",
     "base_revision": "c4f7fdb3aeab5582336406e78d3bef11bf98833d",
 }
+H2O_MODEL = {
+    "id": "h2o-lightning-4b-v1.2.3",
+    "name": "H2O Lightning 4B",
+    "base": "h2oai/h2o-lightning-4b",
+    "base_revision": "acaf0d4ea251e54de928c75ef4352670d33192d3",
+    "runtime_revision": "h2o-torch210-cu130-fla052/v1",
+    "prompt": "h2o-native-v1.2.3",
+    "max_input_tokens": 2048,
+    "recipe": "h2o-language-lora16-adamw/v1",
+    "calibration": "native-then-heldout-temperature/v1",
+}
 ROUND = "33333333-3333-4333-8333-333333333333"
 
 
