@@ -1,0 +1,18 @@
+{
+  "name": "@zils/sdk",
+  "version": "0.1.0",
+  "description": "Typed JavaScript and TypeScript client for Zils decisions",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist", "README.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && tsc -p tsconfig.test.json && node --test test/*.test.mjs",
+    "prepack": "npm run build"
+  },
+  "dependencies": { "@typesafe-ai/sdk": "0.6.0" },
+  "devDependencies": { "typescript": "~5.9.3", "@types/node": "^22.0.0" }
+}

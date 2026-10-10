@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zils-sdk"
+version = "0.1.0"
+description = "Python SDK, CLI, and optional MCP server for Zils decisions"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+dependencies = ["typesafe-sdk==0.7.2"]
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.28,<2"]
+
+[project.scripts]
+zils = "zils_sdk.cli:main"
+zils-mcp = "zils_sdk.mcp:main"
+
+[project.urls]
+Homepage = "https://zils.ai"
+Repository = "https://github.com/ooo-hq/zils-sdk"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+zils_sdk = ["py.typed"]
