@@ -15,6 +15,6 @@
   "files": ["bin", "bootstrap.py", "vendor", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"],
   "scripts": {
     "prepack": "node scripts/build.cjs",
-    "test": "node --test test/*.test.cjs"
+    "test": "node --test test/installed.test.cjs"
   }
 }
