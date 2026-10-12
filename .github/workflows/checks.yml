@@ -61,7 +61,7 @@ jobs:
         run: |
           mkdir -p .private/installed
           npm pack ./packages/cli --pack-destination .private
-          npm install --prefix .private/installed --ignore-scripts ./.private/zils-cli-0.1.0.tgz
+          npm install --prefix .private/installed --ignore-scripts ./.private/zils-cli-*.tgz
       - name: Exercise the installed CLI
         env:
           ZILS_TEST_BIN: ${{ github.workspace }}/.private/installed/node_modules/@zils/cli/bin/zils.cjs

@@ -3,10 +3,11 @@
 from collections.abc import Mapping
 from typing import TypedDict, Unpack
 
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 from typesafe_sdk import (
     AsyncTypeSafeClient,
     JSONContent,
+    JSONValue,
     Question,
     RetryPolicy,
     SystemOneResponse as BaseResponse,
@@ -15,6 +16,7 @@ from typesafe_sdk import (
 )
 
 from ._config import client_config
+from ._ranking import RankedItem, prepare_rank, rank_answers
 
 
 class Usage(BaseUsage):
@@ -27,11 +29,35 @@ class SystemOneResponse(BaseResponse):
     usage: Usage
 
 
+class RankResult(BaseModel):
+    """A local ranking fit and the original decision API's model and token usage."""
+
+    model_config = ConfigDict(frozen=True)
+    model: str
+    ranking: list[RankedItem]
+    comparisons: int
+    usage: Usage
+
+
 class RequestOptions(TypedDict, total=False):
     model: str | None
     retry: RetryPolicy | None
     timeout: float | None
     extra_headers: Mapping[str, str] | None
+
+
+def _rank_result(result: SystemOneResponse, count: int) -> RankResult:
+    if not result.model.strip() or any(
+        type(value) is not int or value < 0
+        for value in (result.usage.input_tokens, result.usage.output_tokens)
+    ):
+        raise ValueError("Ranking response contains invalid model or usage metadata.")
+    return RankResult(
+        model=result.model,
+        ranking=rank_answers(result.answers, count),
+        comparisons=count * (count - 1),
+        usage=result.usage,
+    )
 
 
 class ZilsClient(TypeSafeClient):
@@ -59,6 +85,19 @@ class ZilsClient(TypeSafeClient):
         **options: Unpack[RequestOptions],
     ) -> SystemOneResponse:
         return super().system_one(state, questions, response_model=SystemOneResponse, **options)
+
+    def rank(
+        self, items: list[JSONValue], instructions: str, **options: Unpack[RequestOptions]
+    ) -> RankResult:
+        """Rank 2–10 JSON items using both orders of every pair in one paid request.
+
+        Scores are relative Bradley–Terry strengths, not probabilities or confidence.
+        All comparisons must succeed; the API's normal context and timeout limits apply.
+        """
+        request = prepare_rank(items, instructions)
+        count = len(items)
+        result = self.system_one(**request, **options)
+        return _rank_result(result, count)
 
 
 class AsyncZilsClient(AsyncTypeSafeClient):
@@ -88,3 +127,12 @@ class AsyncZilsClient(AsyncTypeSafeClient):
         return await super().system_one(
             state, questions, response_model=SystemOneResponse, **options
         )
+
+    async def rank(
+        self, items: list[JSONValue], instructions: str, **options: Unpack[RequestOptions]
+    ) -> RankResult:
+        """Async equivalent of ZilsClient.rank; preserves timeout and retry options."""
+        request = prepare_rank(items, instructions)
+        count = len(items)
+        result = await self.system_one(**request, **options)
+        return _rank_result(result, count)

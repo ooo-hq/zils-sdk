@@ -50,8 +50,8 @@ npm run build --prefix packages/typescript
 npm pack ./packages/typescript
 ```
 
-This writes `zils-sdk-0.1.0.tgz` in the current directory. Install that tarball
-into your Node application with `npm install /path/to/zils-sdk-0.1.0.tgz`.
+This writes `zils-sdk-0.2.0.tgz` in the current directory. Install that tarball
+into your Node application with `npm install /path/to/zils-sdk-0.2.0.tgz`.
 The installed import is `@zils/sdk`; both `import` and `require` are supported.
 
 ## Credentials and defaults
@@ -188,6 +188,110 @@ console.log(result.usage.billable_input_tokens);
 include `apiKey`, `baseURL`, `defaultModel`, and `timeout` in **milliseconds**.
 Per-call options support `signal`, timeout, and retry overrides. Typed helpers,
 answers, and error classes come from the compatible TypeSafe client.
+
+## Ranking
+
+SDK version 0.2.0 adds experimental `rank`, using the existing model and HTTP API.
+Install TypeScript with `npm install @zils/sdk@^0.2.0`, or install the Python
+checkout as described above.
+Requests use the configured Zils endpoint and existing Choice decisions.
+
+```ts
+import { ZilsClient } from '@zils/sdk';
+
+const client = new ZilsClient();
+const items = ['Update the logo', 'Checkout is failing', 'Fix a typo'];
+const result = await client.rank({
+  items,
+  instructions: 'Most urgent customer impact first',
+});
+for (const entry of result.ranking) console.log(items[entry.index], entry.score);
+console.log(result.model, result.comparisons, result.usage.billable_input_tokens);
+```
+
+`rank(request, options)` returns a `Promise<RankResult>` and accepts the existing
+per-call timeout, retry, and abort-signal options. An optional `request.model`
+overrides the configured model. It does not expose `APIPromise.withResponse()`.
+
+```python
+from zils_sdk import ZilsClient
+
+items = ["Update the logo", "Checkout is failing", "Fix a typo"]
+with ZilsClient() as client:
+    result = client.rank(items, "Most urgent customer impact first")
+    for entry in result.ranking:
+        print(items[entry.index], entry.score)
+    print(result.model, result.comparisons, result.usage.billable_input_tokens)
+```
+
+Use `await client.rank(items, instructions)` with `AsyncZilsClient` for the async
+equivalent. Python returns a `RankResult` with `RankedItem` entries; both types
+are exported. Existing per-call model, timeout, retry, and extra-header options
+are supported.
+
+### Contract and cost
+
+- Supply 2–10 items and a nonempty instruction describing which items should
+  rank highest. Items can be any finite JSON value, including structured records.
+  Object keys must be strings; convert dates, sets, and other custom objects to
+  JSON values yourself. Unsupported values are rejected without sending a request.
+  Duplicate items remain separate entries, identified by their original indices.
+- The SDK sends one `POST /v1/systemone` request containing `n * (n - 1)` Choice
+  questions: every pair in both orders. Two items require 2 judgments, three
+  require 6, and ten require 90. One request is not one model evaluation.
+- The returned `ranking` is ordered strongest first. Each entry has a zero-based
+  `index` into the original list and a `score` relative to the strongest fitted
+  strength. Ties retain input order; tied leaders can all score 1.
+- `comparisons` counts the Choice judgments, including reversed pairs. `model`
+  and `usage` come from the actual response. Billable and resource tokens remain
+  distinct; a missing billable count stays missing. No cost is estimated locally.
+- The existing body/context budgets, execution limits, billing, and timeout apply.
+  Ten long documents can still exceed those limits. Automatic retries remain off
+  by default; callers can explicitly opt in through the existing retry options.
+
+### What the score means
+
+The SDK averages `P(A beats B)` with `1 - P(B beats A)` from the reversed
+comparison. This reduces fixed presentation-order bias; it does not guarantee
+that the judgments are unbiased or correct. It uses these probabilities as
+fractional wins in a Bradley–Terry maximum-likelihood fit. The model's separate
+Choice `confidence` is not used as an additional weight.
+
+A fitted strength divided by the largest strength becomes the displayed score.
+For example, illustrative scores of 1.0, 0.5, and 0.25 describe relative
+strengths, not probabilities of being correct. Under the fitted model, a 0.5
+item has a `0.5 / (0.5 + 1)`, or one-third, chance of beating the leader. Scores
+do not sum to 1 and cannot be compared across unrelated lists or criteria.
+The best item in a poor list can still score 1; there is no separate ranking
+confidence or absolute quality threshold.
+
+Exact arithmetic and unit conversion can produce incorrect model comparisons.
+Compute derived numeric fields and normalize units in ordinary code first. If
+the entire criterion is a numeric sort, use ordinary sorting directly. Comparing
+both orders and fitting strengths does not correct wrong comparison evidence.
+
+The [Bradley–Terry MM algorithm](https://doi.org/10.1214/aos/1079120141)
+uses the complete comparison graph. Pair probabilities are clipped to
+`[0.001, 0.999]` before fitting so zero/one judgments cannot force infinite
+strength ratios. This bounds extreme evidence and changes those extreme inputs;
+it is not a measured calibration of the model. The fit stops when the maximum
+absolute log-strength update is below `1e-10`, with a 100,000-iteration ceiling.
+Output strengths use ten significant digits, preserving tiny positive scores
+while suppressing floating-point differences between ties.
+
+Invalid inputs are rejected before the request. Missing comparisons, the wrong
+answer type, invalid probabilities or confidence, missing/invalid model or token
+usage, or a nonconvergent fit raise an error instead of returning a partial ranking.
+A successful model request may
+already be billed even if its response cannot be ranked. Transport/API failures
+propagate normally; the SDK never silently substitutes per-item scoring or
+submits a second request to repair an answer.
+
+Tests cover known synthetic strengths, ties, cyclic preferences, fixed order
+bias, extreme probabilities, structured/duplicate items, and the existing
+gateway contract. They do not establish ranking accuracy, latency, or cost on
+real customer data. The first version deliberately has no sampling, top-k
+shortcut, new model training, CLI command, or MCP tool.
 
 ## MCP
 

@@ -19,9 +19,10 @@ from typesafe_sdk import (
     TypeSafeError as ZilsError,
 )
 
-from .client import AsyncZilsClient, SystemOneResponse, Usage, ZilsClient
+from ._ranking import RankedItem
+from .client import AsyncZilsClient, RankResult, SystemOneResponse, Usage, ZilsClient
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
     "APIError",
     "Answer",
@@ -36,6 +37,8 @@ __all__ = [
     "NoulAnswer",
     "Question",
     "Questions",
+    "RankedItem",
+    "RankResult",
     "RetryPolicy",
     "Score",
     "ScoreAnswer",
