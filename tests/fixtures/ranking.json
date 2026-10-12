@@ -1,0 +1,26 @@
+[
+  {
+    "name": "known strengths",
+    "items": ["low", "medium", "high"],
+    "probabilities": [[null, 0.3333333333333333, 0.2], [0.6666666666666666, null, 0.3333333333333333], [0.8, 0.6666666666666666, null]],
+    "ranking": [[2, 1.0], [1, 0.5], [0, 0.25]]
+  },
+  {
+    "name": "ties retain input order",
+    "items": ["a", "b", "c"],
+    "probabilities": [[null, 0.5, 0.5], [0.5, null, 0.5], [0.5, 0.5, null]],
+    "ranking": [[0, 1.0], [1, 1.0], [2, 1.0]]
+  },
+  {
+    "name": "cyclic preferences do not invent a winner",
+    "items": ["rock", "paper", "scissors"],
+    "probabilities": [[null, 0.1, 0.9], [0.9, null, 0.1], [0.1, 0.9, null]],
+    "ranking": [[0, 1.0], [1, 1.0], [2, 1.0]]
+  },
+  {
+    "name": "swapped comparisons cancel a fixed first-option preference",
+    "items": ["a", "b", "c"],
+    "probabilities": [[null, 0.9, 0.9], [0.9, null, 0.9], [0.9, 0.9, null]],
+    "ranking": [[0, 1.0], [1, 1.0], [2, 1.0]]
+  }
+]

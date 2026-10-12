@@ -24,6 +24,14 @@ Use **`zils login`** for browser account sign-in, then `zils train` to submit an
 manage H2O and JevK5 text training. [Training CLI guide](docs/training-cli.md). Account
 sessions and inference API keys are separate; browser login does not create a key.
 
+## Ranking
+
+SDK version 0.2.0 adds `rank(...)` for ordering 2–10 JSON items against a
+criterion. It uses existing Choice decisions, compares each pair in both orders,
+and fits relative strengths locally. See the [ranking guide](docs/developer-tools.md#ranking)
+for Python/TypeScript examples, usage accounting, and limits. Ranking is
+experimental: scores are relative strengths, and accuracy needs task-specific evaluation.
+
 ## Checks
 
 ```sh

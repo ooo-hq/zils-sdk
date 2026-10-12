@@ -3,6 +3,9 @@ import {
   type SystemOneRequest, type SystemOneResult as BaseResult, type RequestOptions,
   type Usage as BaseUsage,
 } from '@typesafe-ai/sdk';
+import { prepareRank, rankAnswers, type RankRequest, type RankResult } from './ranking.js';
+
+export type { RankRequest, RankResult, RankedItem } from './ranking.js';
 
 export {
   noul, choice, score, APIError, APIConnectionError, APITimeoutError,
@@ -62,5 +65,24 @@ export class ZilsClient extends TypeSafeClient {
 
   override systemOne<const Q extends Questions>(request: SystemOneRequest<Q>, options?: RequestOptions): APIPromise<SystemOneResult<Q>> {
     return super.systemOne(request, options) as APIPromise<SystemOneResult<Q>>;
+  }
+
+  /** Rank 2–10 JSON items in one paid request; scores are relative strengths, not confidence. */
+  async rank(request: RankRequest, options?: RequestOptions): Promise<RankResult> {
+    const body = prepareRank(request);
+    const count = request.items.length;
+    const result = await this.systemOne(body, options);
+    if (typeof result.model !== 'string' || !result.model.trim() || !result.usage ||
+        ![result.usage.input_tokens, result.usage.output_tokens,
+          ...(result.usage.billable_input_tokens === undefined ? [] : [result.usage.billable_input_tokens])]
+          .every(value => typeof value === 'number' && Number.isInteger(value) && value >= 0)) {
+      throw new Error('Ranking response contains invalid model or usage metadata.');
+    }
+    return {
+      model: result.model,
+      ranking: rankAnswers(result.answers, count),
+      comparisons: Object.keys(body.questions).length,
+      usage: result.usage,
+    };
   }
 }

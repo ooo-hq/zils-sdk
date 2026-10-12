@@ -1,4 +1,4 @@
-import { ZilsClient, noul, choice, score } from '../src';
+import { ZilsClient, noul, choice, score, type RankResult } from '../src';
 
 async function typed(client: ZilsClient) {
   const result = await client.systemOne({
@@ -16,6 +16,15 @@ async function typed(client: ZilsClient) {
   result.answers.unknown;
   // @ts-expect-error A yes/no answer is not a choice answer.
   result.answers.refund.choice;
-  return { probability, label, billable };
+  const ranked: RankResult = await client.rank({ items: [{ title: 'A' }, 'B'], instructions: 'Most useful first' });
+  const index: number = ranked.ranking[0].index;
+  const relativeStrength: number = ranked.ranking[0].score;
+  // @ts-expect-error Ranking requires a list, not a single string.
+  client.rank({ items: 'A', instructions: 'Most useful first' });
+  // @ts-expect-error Ranking items must be JSON values.
+  client.rank({ items: ['A', undefined], instructions: 'Most useful first' });
+  // @ts-expect-error Ranking requires a criterion.
+  client.rank({ items: ['A', 'B'] });
+  return { probability, label, billable, index, relativeStrength };
 }
 void typed;
