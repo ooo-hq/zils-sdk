@@ -49,7 +49,7 @@ for (const entry of result.ranking) {
 console.log(result.comparisons, result.usage.billable_input_tokens);
 ```
 
-Accepts 2–10 JSON items. One existing decision API request compares every pair in
+Accepts 2–10 JSON items. By default, one existing decision API request compares every pair in
 both orders: `n * (n - 1)` model judgments, up to 90. It fits Bradley–Terry strengths
 locally and returns original indices, relative scores, the actual model, and
 unmodified usage. A score of 1 means strongest in this set, not certainty or
@@ -58,6 +58,14 @@ new model or HTTP endpoint. Existing context, timeout, billing, and retry rules
 apply; one HTTP request does not mean one model evaluation. See the
 [ranking contract](https://github.com/ooo-hq/zils-sdk/blob/main/docs/developer-tools.md#ranking)
 for numerical limits, failure behavior, and examples.
+
+**New in 0.3.0:** add `groupSize: 4` to the rank request to compare
+overlapping groups instead. Group sizes must be integers from 2 to 10 and are
+capped to the list length. This sends `n` Choice judgments, fits relative Luce
+strengths across groups, and preserves the result shape and 10-item limit.
+Ten items use 10 judgments instead of 90. Each item appears in every group
+position once; fewer comparisons can lose accuracy, and savings depend on actual
+token usage. Pairwise ranking remains the default.
 
 Evaluate ranking on your own task before relying on the order. Use ordinary code
 for arithmetic, unit conversion, and purely numeric sorting; the model can make

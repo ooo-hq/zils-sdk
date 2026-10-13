@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { ZilsClient, APIError } from '../dist/index.js';
 
 const cases = JSON.parse(readFileSync(new URL('../../../tests/fixtures/ranking.json', import.meta.url)));
+const groupedCases = JSON.parse(readFileSync(new URL('../../../tests/fixtures/grouped-ranking.json', import.meta.url)));
 
 async function fixture(t, scenario = cases[0], transform = () => {}, status = 200) {
   const calls = [];
@@ -15,6 +16,15 @@ async function fixture(t, scenario = cases[0], transform = () => {}, status = 20
     calls.push({ path: req.url, authorization: req.headers.authorization, body });
     const answers = {};
     for (const [name, question] of Object.entries(body.questions)) {
+      if (scenario.strengths || scenario.position_probabilities) {
+        const weights = scenario.position_probabilities || Object.values(question.criteria).map(option =>
+          scenario.strengths[scenario.items.findIndex(item => JSON.stringify(item) === JSON.stringify(option.item))]);
+        const total = weights.reduce((sum, value) => sum + value, 0);
+        const probabilities = Object.fromEntries(Object.keys(question.criteria).map((key, i) => [key, weights[i] / total]));
+        const choice = Object.keys(probabilities).reduce((a, b) => probabilities[a] >= probabilities[b] ? a : b);
+        answers[name] = { type: 'choice', choice, probabilities, confidence: probabilities[choice] };
+        continue;
+      }
       const a = scenario.items.findIndex(item => JSON.stringify(item) === JSON.stringify(question.criteria.a.item));
       const b = scenario.items.findIndex(item => JSON.stringify(item) === JSON.stringify(question.criteria.b.item));
       const p = scenario.probabilities[a][b];
@@ -64,6 +74,76 @@ test('reordered inputs retain the ranking with updated original indices', async 
   const { client } = await fixture(t);
   const result = await client.rank({ items: ['high', 'low', 'medium'], instructions: 'Most useful first' });
   assertRanking(result, [[0, 1], [2, 0.5], [1, 0.25]]);
+});
+
+for (const scenario of groupedCases) {
+  test(`grouped: ${scenario.name}`, async t => {
+    const { client, calls } = await fixture(t, scenario);
+    const result = await client.rank({ items: scenario.items, instructions: 'Most useful first',
+      model: 'private-model', groupSize: scenario.group_size });
+    assertRanking(result, scenario.ranking);
+    assert.equal(result.comparisons, scenario.items.length);
+    assert.deepEqual(result.usage, { input_tokens: 1234, output_tokens: 0, billable_input_tokens: 456 });
+    assert.equal(calls.length, 1);
+    const body = calls[0].body;
+    assert.equal(body.model, 'private-model');
+    assert.deepEqual(body.state, { criterion: 'Most useful first' });
+    const groups = Object.values(body.questions).map(q => Object.values(q.criteria));
+    const size = Math.min(scenario.group_size, scenario.items.length);
+    assert.ok(groups.every(group => group.length === size));
+    for (let position = 0; position < size; position++) {
+      assert.deepEqual(groups.map(group => JSON.stringify(group[position].item)).sort(),
+        scenario.items.map(item => JSON.stringify(item)).sort());
+    }
+  });
+}
+
+test('grouped requests snapshot items and group size before waiting', async t => {
+  const request = { items: ['high', 'low', 'medium'], instructions: 'Rank', groupSize: 4 };
+  const { client } = await fixture(t, groupedCases[2], () => {
+    request.items.length = 0; request.groupSize = 2;
+  });
+  const result = await client.rank(request);
+  assertRanking(result, [[0, 1], [2, 0.5], [1, 0.25]]);
+  assert.equal(result.comparisons, 3);
+});
+
+test('invalid group sizes never send a paid request', async t => {
+  const { client, calls } = await fixture(t);
+  for (const groupSize of [0, 1, 11, 2.5, true, '4', null, NaN, Infinity]) {
+    await assert.rejects(client.rank({ items: ['a', 'b', 'c'], instructions: 'Rank', groupSize }));
+  }
+  assert.equal(calls.length, 0);
+});
+
+test('grouped incomplete or invalid answers fail without retry', async t => {
+  for (const transform of [
+    v => { delete v.answers[Object.keys(v.answers)[0]]; },
+    v => { v.answers.extra = Object.values(v.answers)[0]; },
+    v => {
+      const p = Object.values(v.answers)[0].probabilities;
+      const key = Object.keys(p)[0]; p.unexpected = p[key]; delete p[key];
+    },
+    v => { Object.values(v.answers)[0].choice = 'unexpected'; },
+    v => { Object.values(v.answers)[0].confidence = -1; },
+    v => { Object.values(v.answers)[0].type = 'noul'; },
+    v => { Object.values(v.answers)[0].probabilities.a = 2; },
+  ]) {
+    const { client, calls } = await fixture(t, groupedCases[0], transform);
+    await assert.rejects(client.rank({ items: groupedCases[0].items, instructions: 'Rank', groupSize: 4 }));
+    assert.equal(calls.length, 1);
+  }
+});
+
+test('grouped zero and one probabilities keep finite strengths', async t => {
+  const { client } = await fixture(t, groupedCases[0], value => {
+    for (const answer of Object.values(value.answers)) {
+      answer.probabilities = Object.fromEntries(Object.keys(answer.probabilities).map(key => [key, Number(key === answer.choice)]));
+    }
+  });
+  const result = await client.rank({ items: groupedCases[0].items, instructions: 'Rank', groupSize: 4 });
+  assert.equal(result.ranking[0].index, 9);
+  assert.ok(result.ranking.every(r => Number.isFinite(r.score) && r.score > 0 && r.score <= 1));
 });
 
 test('invalid inputs are rejected before sending a paid request', async t => {

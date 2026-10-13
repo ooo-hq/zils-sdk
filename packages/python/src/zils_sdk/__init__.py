@@ -22,7 +22,7 @@ from typesafe_sdk import (
 from ._ranking import RankedItem
 from .client import AsyncZilsClient, RankResult, SystemOneResponse, Usage, ZilsClient
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = [
     "APIError",
     "Answer",

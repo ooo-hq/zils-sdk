@@ -10,6 +10,9 @@ from types import SimpleNamespace
 CASES = json.loads(
     (Path(__file__).resolve().parents[3] / "tests/fixtures/ranking.json").read_text()
 )
+GROUPED_CASES = json.loads(
+    (Path(__file__).resolve().parents[3] / "tests/fixtures/grouped-ranking.json").read_text()
+)
 
 
 @contextmanager
@@ -22,6 +25,23 @@ def ranking_api(case, transform=None, status=200):
             calls.append((self.path, self.headers.get("Authorization"), body))
             answers = {}
             for name, question in body["questions"].items():
+                if "strengths" in case or "position_probabilities" in case:
+                    weights = case.get("position_probabilities") or [
+                        case["strengths"][case["items"].index(option["item"])]
+                        for option in question["criteria"].values()
+                    ]
+                    probabilities = {
+                        key: weight / sum(weights)
+                        for key, weight in zip(question["criteria"], weights, strict=True)
+                    }
+                    choice = max(probabilities, key=probabilities.get)
+                    answers[name] = {
+                        "type": "choice",
+                        "choice": choice,
+                        "probabilities": probabilities,
+                        "confidence": probabilities[choice],
+                    }
+                    continue
                 a = case["items"].index(question["criteria"]["a"]["item"])
                 b = case["items"].index(question["criteria"]["b"]["item"])
                 p = case["probabilities"][a][b]
