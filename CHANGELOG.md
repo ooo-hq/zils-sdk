@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0 — 2026-10-13
+
+- Add optional `group_size` / `groupSize` to Python sync/async and TypeScript
+  `rank`. Groups accept 2–10 items, capped to the list length; four is a starting
+  point for evaluation. Overlapping cyclic groups balance presentation positions
+  and use `n` Choice judgments in one request, with a local Luce choice-strength
+  fit across groups. Ten items use 10 judgments instead of 90.
+- Preserve all-pairs ranking by default, the 2–10-item cap, result shape, input
+  validation, and billing/retry behavior. Group probabilities are floored and
+  renormalized before fitting; incomplete or invalid answers fail without repair
+  requests. Shared synthetic fixtures cover strengths, position bias, short
+  lists and duplicates. A small synthetic live pilot found lower ordering
+  quality with grouped comparisons. Customer accuracy, public API latency and
+  billed savings have not been measured; grouped ranking remains experimental.
+- Update the npm CLI's bundled Python package to 0.3.0. No ranking CLI command,
+  MCP tool, HTTP endpoint or model change is included.
+
 ## 0.2.0 — 2026-10-12
 
 - Add experimental `rank` to the Python synchronous/asynchronous clients and the

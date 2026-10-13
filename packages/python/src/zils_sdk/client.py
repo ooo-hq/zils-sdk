@@ -46,7 +46,9 @@ class RequestOptions(TypedDict, total=False):
     extra_headers: Mapping[str, str] | None
 
 
-def _rank_result(result: SystemOneResponse, count: int) -> RankResult:
+def _rank_result(
+    result: SystemOneResponse, count: int, group_size: int | None = None
+) -> RankResult:
     if not result.model.strip() or any(
         type(value) is not int or value < 0
         for value in (result.usage.input_tokens, result.usage.output_tokens)
@@ -54,8 +56,8 @@ def _rank_result(result: SystemOneResponse, count: int) -> RankResult:
         raise ValueError("Ranking response contains invalid model or usage metadata.")
     return RankResult(
         model=result.model,
-        ranking=rank_answers(result.answers, count),
-        comparisons=count * (count - 1),
+        ranking=rank_answers(result.answers, count, group_size),
+        comparisons=count if group_size is not None else count * (count - 1),
         usage=result.usage,
     )
 
@@ -87,17 +89,23 @@ class ZilsClient(TypeSafeClient):
         return super().system_one(state, questions, response_model=SystemOneResponse, **options)
 
     def rank(
-        self, items: list[JSONValue], instructions: str, **options: Unpack[RequestOptions]
+        self,
+        items: list[JSONValue],
+        instructions: str,
+        *,
+        group_size: int | None = None,
+        **options: Unpack[RequestOptions],
     ) -> RankResult:
-        """Rank 2–10 JSON items using both orders of every pair in one paid request.
+        """Rank 2–10 JSON items in one paid request, pairwise by default.
 
-        Scores are relative Bradley–Terry strengths, not probabilities or confidence.
+        Set group_size (2–10, capped to the list length) for overlapping Choice groups.
+        Scores are relative strengths, not probabilities or confidence.
         All comparisons must succeed; the API's normal context and timeout limits apply.
         """
-        request = prepare_rank(items, instructions)
+        request = prepare_rank(items, instructions, group_size)
         count = len(items)
         result = self.system_one(**request, **options)
-        return _rank_result(result, count)
+        return _rank_result(result, count, group_size)
 
 
 class AsyncZilsClient(AsyncTypeSafeClient):
@@ -129,10 +137,15 @@ class AsyncZilsClient(AsyncTypeSafeClient):
         )
 
     async def rank(
-        self, items: list[JSONValue], instructions: str, **options: Unpack[RequestOptions]
+        self,
+        items: list[JSONValue],
+        instructions: str,
+        *,
+        group_size: int | None = None,
+        **options: Unpack[RequestOptions],
     ) -> RankResult:
         """Async equivalent of ZilsClient.rank; preserves timeout and retry options."""
-        request = prepare_rank(items, instructions)
+        request = prepare_rank(items, instructions, group_size)
         count = len(items)
         result = await self.system_one(**request, **options)
-        return _rank_result(result, count)
+        return _rank_result(result, count, group_size)

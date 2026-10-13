@@ -48,7 +48,7 @@ with ZilsClient() as client:
 
 `AsyncZilsClient.rank` accepts the same arguments with `await`. Both accept 2–10
 JSON items and the usual per-call `model`, `timeout`, and `retry` options.
-Every pair is compared in both orders in one existing decision API request:
+By default, every pair is compared in both orders in one existing decision API request:
 `n * (n - 1)` model judgments, up to 90. The SDK fits Bradley–Terry strengths
 locally; 1 means strongest in this set, not certainty or absolute quality. Equal
 scores retain input order. Results include original indices and unchanged usage.
@@ -56,6 +56,14 @@ Existing context and billing limits still apply. This source feature does not
 add a new HTTP endpoint, CLI command, or MCP tool. See the
 [ranking contract](https://github.com/ooo-hq/zils-sdk/blob/main/docs/developer-tools.md#ranking)
 for numerical limits and failure behavior.
+
+**New in 0.3.0:** pass `group_size=4` to either client to compare
+overlapping groups instead. Group sizes must be integers from 2 to 10 and are
+capped to the list length. This sends `n` Choice judgments, fits relative Luce
+strengths across groups, and preserves the result shape and 10-item limit.
+Ten items use 10 judgments instead of 90. Each item appears in every group
+position once; fewer comparisons can lose accuracy, and savings depend on actual
+token usage. Pairwise ranking remains the default.
 
 Evaluate ranking on your own task before relying on the order. Use ordinary code
 for arithmetic, unit conversion, and purely numeric sorting; the model can make

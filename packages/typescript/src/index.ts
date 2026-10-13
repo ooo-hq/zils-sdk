@@ -69,6 +69,7 @@ export class ZilsClient extends TypeSafeClient {
 
   /** Rank 2–10 JSON items in one paid request; scores are relative strengths, not confidence. */
   async rank(request: RankRequest, options?: RequestOptions): Promise<RankResult> {
+    const groupSize = request.groupSize;
     const body = prepareRank(request);
     const count = request.items.length;
     const result = await this.systemOne(body, options);
@@ -80,7 +81,7 @@ export class ZilsClient extends TypeSafeClient {
     }
     return {
       model: result.model,
-      ranking: rankAnswers(result.answers, count),
+      ranking: rankAnswers(result.answers, count, groupSize),
       comparisons: Object.keys(body.questions).length,
       usage: result.usage,
     };

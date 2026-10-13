@@ -3,7 +3,7 @@ import math
 import unittest
 from unittest.mock import patch
 
-from ranking_fixture import CASES, ranking_api
+from ranking_fixture import CASES, GROUPED_CASES, ranking_api
 from sdk_helpers import api
 from zils_sdk import APIError, AsyncZilsClient, ZilsClient, ZilsError
 
@@ -55,6 +55,93 @@ class RankingTests(unittest.TestCase):
             result = asyncio.run(run(service.url))
         self.assert_ranking(result, CASES[0]["ranking"])
         self.assertEqual(result.usage.billable_input_tokens, 456)
+
+    def test_grouped_ranking_recovers_strengths_and_balances_positions(self):
+        for case in GROUPED_CASES:
+            with self.subTest(case=case["name"]), ranking_api(case) as service:
+                with self.client(service.url) as client:
+                    result = client.rank(
+                        case["items"],
+                        "Most useful first",
+                        group_size=case["group_size"],
+                        model="private-model",
+                    )
+                self.assert_ranking(result, case["ranking"])
+                self.assertEqual(result.comparisons, len(case["items"]))
+                self.assertEqual(result.usage.billable_input_tokens, 456)
+                self.assertEqual(result.usage.input_tokens, 1234)
+                self.assertEqual(len(service.calls), 1)
+                body = service.calls[0][2]
+                self.assertEqual(body["model"], "private-model")
+                self.assertEqual(body["state"], {"criterion": "Most useful first"})
+                groups = [list(q["criteria"].values()) for q in body["questions"].values()]
+                size = min(case["group_size"], len(case["items"]))
+                self.assertTrue(all(len(group) == size for group in groups))
+                for position in range(size):
+                    self.assertCountEqual(
+                        [group[position]["item"] for group in groups], case["items"]
+                    )
+
+    def test_grouped_async_ranking_snapshots_input_and_supports_reordering(self):
+        case = GROUPED_CASES[2]
+        items = ["high", "low", "medium"]
+
+        async def run(url):
+            async with self.client(url, AsyncZilsClient) as client:
+                return await client.rank(items, "Most useful first", group_size=4)
+
+        with ranking_api(case, lambda value: items.clear()) as service:
+            result = asyncio.run(run(service.url))
+        self.assert_ranking(result, [[0, 1], [2, 0.5], [1, 0.25]])
+        self.assertEqual(result.comparisons, 3)
+
+    def test_invalid_group_sizes_never_send_a_paid_request(self):
+        with ranking_api(GROUPED_CASES[0]) as service, self.client(service.url) as client:
+            for size in (0, 1, 11, 2.5, True, "4"):
+                with self.subTest(size=size), self.assertRaises(ValueError):
+                    client.rank(["a", "b", "c"], "Rank", group_size=size)
+            self.assertEqual(service.calls, [])
+
+    def test_grouped_incomplete_or_invalid_answers_fail_without_retry(self):
+        def wrong_labels(value):
+            answer = next(iter(value["answers"].values()))
+            key = next(iter(answer["probabilities"]))
+            answer["probabilities"]["unexpected"] = answer["probabilities"].pop(key)
+
+        for transform in (
+            lambda v: v["answers"].pop(next(iter(v["answers"]))),
+            lambda v: v["answers"].update(extra=next(iter(v["answers"].values()))),
+            wrong_labels,
+            lambda v: next(iter(v["answers"].values())).update(choice="unexpected"),
+            lambda v: next(iter(v["answers"].values())).update(confidence=-1),
+            lambda v: next(iter(v["answers"].values())).update(type="noul"),
+            lambda v: next(iter(v["answers"].values()))["probabilities"].update(a=2),
+        ):
+            with (
+                self.subTest(transform=transform),
+                ranking_api(GROUPED_CASES[0], transform) as service,
+            ):
+                with self.client(service.url) as client, self.assertRaises((ValueError, ZilsError)):
+                    client.rank(GROUPED_CASES[0]["items"], "Rank", group_size=4)
+                self.assertEqual(len(service.calls), 1)
+
+    def test_grouped_zero_one_probabilities_keep_finite_strengths(self):
+        def decisive(value):
+            for answer in value["answers"].values():
+                answer["probabilities"] = {
+                    key: float(key == answer["choice"]) for key in answer["probabilities"]
+                }
+
+        with ranking_api(GROUPED_CASES[0], decisive) as service, self.client(service.url) as client:
+            result = client.rank(GROUPED_CASES[0]["items"], "Rank", group_size=4)
+        self.assertEqual(result.ranking[0].index, 9)
+        self.assertTrue(all(math.isfinite(r.score) and 0 < r.score <= 1 for r in result.ranking))
+
+    def test_grouped_ranking_uses_the_existing_gateway_contract(self):
+        with api() as service, ZilsClient(api_key="valid-key", base_url=service.url) as client:
+            result = client.rank(["a", "b", "c", "d", "e"], "Rank", group_size=4)
+        self.assert_ranking(result, [[0, 1], [1, 1], [2, 1], [3, 1], [4, 1]])
+        self.assertEqual(result.comparisons, 5)
 
     def test_rejects_invalid_input_before_any_paid_request(self):
         circular = []

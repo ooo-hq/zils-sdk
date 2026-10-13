@@ -19,12 +19,15 @@ async function typed(client: ZilsClient) {
   const ranked: RankResult = await client.rank({ items: [{ title: 'A' }, 'B'], instructions: 'Most useful first' });
   const index: number = ranked.ranking[0].index;
   const relativeStrength: number = ranked.ranking[0].score;
+  const grouped: RankResult = await client.rank({ items: ['A', 'B', 'C'], instructions: 'Rank', groupSize: 4 });
+  // @ts-expect-error Group size must be numeric.
+  client.rank({ items: ['A', 'B'], instructions: 'Rank', groupSize: '4' });
   // @ts-expect-error Ranking requires a list, not a single string.
   client.rank({ items: 'A', instructions: 'Most useful first' });
   // @ts-expect-error Ranking items must be JSON values.
   client.rank({ items: ['A', undefined], instructions: 'Most useful first' });
   // @ts-expect-error Ranking requires a criterion.
   client.rank({ items: ['A', 'B'] });
-  return { probability, label, billable, index, relativeStrength };
+  return { probability, label, billable, index, relativeStrength, grouped };
 }
 void typed;

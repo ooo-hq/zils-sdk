@@ -50,8 +50,8 @@ npm run build --prefix packages/typescript
 npm pack ./packages/typescript
 ```
 
-This writes `zils-sdk-0.2.0.tgz` in the current directory. Install that tarball
-into your Node application with `npm install /path/to/zils-sdk-0.2.0.tgz`.
+This writes `zils-sdk-0.3.0.tgz` in the current directory. Install that tarball
+into your Node application with `npm install /path/to/zils-sdk-0.3.0.tgz`.
 The installed import is `@zils/sdk`; both `import` and `require` are supported.
 
 ## Credentials and defaults
@@ -192,7 +192,7 @@ answers, and error classes come from the compatible TypeSafe client.
 ## Ranking
 
 SDK version 0.2.0 adds experimental `rank`, using the existing model and HTTP API.
-Install TypeScript with `npm install @zils/sdk@^0.2.0`, or install the Python
+Install TypeScript with `npm install @zils/sdk@^0.3.0`, or install the Python
 checkout as described above.
 Requests use the configured Zils endpoint and existing Choice decisions.
 
@@ -229,6 +229,70 @@ equivalent. Python returns a `RankResult` with `RankedItem` entries; both types
 are exported. Existing per-call model, timeout, retry, and extra-header options
 are supported.
 
+### Grouped ranking
+
+Version 0.3.0 adds an optional group size. Pairwise ranking remains the default;
+set the option explicitly to evaluate grouped ranking.
+
+```ts
+const result = await client.rank({
+  items,
+  instructions: 'Most urgent customer impact first',
+  groupSize: 4,
+});
+```
+
+```python
+result = client.rank(items, "Most urgent customer impact first", group_size=4)
+```
+
+Python's async client accepts the same keyword. Omit the option (or use Python
+`None`) for the existing all-pairs method. An explicit group size must be an
+integer from 2 to 10; groups use `min(group_size, len(items))` distinct input
+indices. The overall list still requires 2–10 items.
+
+The SDK places items in input order on a cycle and compares one consecutive
+group starting at each item, wrapping at the end. For five items and groups of
+four, the questions cover `ABCD`, `BCDE`, `CDEA`, `DEAB`, and `EABC`. This connects
+all items through overlapping groups and places every item in every position
+once. A group size of 2 explicitly selects this sparse cycle; it does not select
+the default all-pairs method. Groups as large as the list compare all items in
+each of `n` rotated presentations.
+
+| Items | Default all-pairs judgments | Grouped judgments (`groupSize: 4`) |
+| --- | --- | --- |
+| 2 | 2 | 2 |
+| 3 | 6 | 3 |
+| 10 | 90 | 10 |
+
+Both methods use one HTTP request and return the same result shape. `comparisons`
+counts Choice questions, so grouped mode returns `n`. Larger groups put more
+text in each question and change the competing alternatives; they do not reduce
+the number of grouped questions further. Context limits still apply. Fewer
+questions do not guarantee proportional billing or latency savings.
+
+Grouped mode fits a Luce choice model: within a group, an item's predicted
+probability is its strength divided by the sum of strengths in that group.
+The fit uses all returned probabilities as fractional outcomes, accounting for
+the alternatives in each question. It does not compare raw probabilities across
+different groups or treat one group as independent judgments of every pair.
+Before fitting, each probability is floored at `0.001` and the group is
+renormalized to sum to one. This changes extreme evidence to keep strengths
+finite. The same convergence threshold, iteration limit and output rounding
+described below apply.
+
+Four items per group is a starting point for evaluation, not a validated quality
+setting. A small synthetic live pilot found ordering regressions, including poor
+fallback choices despite a correct first choice. Position balancing reduces a
+fixed positional preference; it does not
+remove content-dependent bias. Different input permutations change the groups
+and can change rankings when judgments are inconsistent with one set of
+strengths. Scores are relative to this list and method, not calibrated confidence.
+Compare both methods on independently labeled examples before changing your
+application's default; measure ranking quality, returned token usage and elapsed
+time. The included synthetic tests establish arithmetic and protocol behavior,
+not real-world ranking accuracy or savings.
+
 ### Contract and cost
 
 - Supply 2–10 items and a nonempty instruction describing which items should
@@ -236,13 +300,13 @@ are supported.
   Object keys must be strings; convert dates, sets, and other custom objects to
   JSON values yourself. Unsupported values are rejected without sending a request.
   Duplicate items remain separate entries, identified by their original indices.
-- The SDK sends one `POST /v1/systemone` request containing `n * (n - 1)` Choice
+- By default the SDK sends one `POST /v1/systemone` request containing `n * (n - 1)` Choice
   questions: every pair in both orders. Two items require 2 judgments, three
   require 6, and ten require 90. One request is not one model evaluation.
 - The returned `ranking` is ordered strongest first. Each entry has a zero-based
   `index` into the original list and a `score` relative to the strongest fitted
   strength. Ties retain input order; tied leaders can all score 1.
-- `comparisons` counts the Choice judgments, including reversed pairs. `model`
+- `comparisons` counts the Choice judgments: ordered pairs by default or groups when selected. `model`
   and `usage` come from the actual response. Billable and resource tokens remain
   distinct; a missing billable count stays missing. No cost is estimated locally.
 - The existing body/context budgets, execution limits, billing, and timeout apply.
@@ -251,7 +315,7 @@ are supported.
 
 ### What the score means
 
-The SDK averages `P(A beats B)` with `1 - P(B beats A)` from the reversed
+The default pairwise method averages `P(A beats B)` with `1 - P(B beats A)` from the reversed
 comparison. This reduces fixed presentation-order bias; it does not guarantee
 that the judgments are unbiased or correct. It uses these probabilities as
 fractional wins in a Bradley–Terry maximum-likelihood fit. The model's separate
@@ -290,8 +354,9 @@ submits a second request to repair an answer.
 Tests cover known synthetic strengths, ties, cyclic preferences, fixed order
 bias, extreme probabilities, structured/duplicate items, and the existing
 gateway contract. They do not establish ranking accuracy, latency, or cost on
-real customer data. The first version deliberately has no sampling, top-k
-shortcut, new model training, CLI command, or MCP tool.
+real customer data. Grouped fixtures also cover overlapping sets, balanced
+positions, group-size validation, and both SDKs' agreement with known strengths.
+There is no top-k shortcut, new model training, CLI command, or MCP tool.
 
 ## MCP
 

@@ -32,6 +32,12 @@ and fits relative strengths locally. See the [ranking guide](docs/developer-tool
 for Python/TypeScript examples, usage accounting, and limits. Ranking is
 experimental: scores are relative strengths, and accuracy needs task-specific evaluation.
 
+Version 0.3.0 adds **optional grouped ranking**:
+`groupSize: 4` in TypeScript or `group_size=4` in Python. Overlapping groups use
+10 Choice judgments for 10 items; the default still uses all 90 ordered pairs.
+See [grouped ranking](docs/developer-tools.md#grouped-ranking) for the
+tradeoffs. Pairwise ranking remains the default.
+
 ## Checks
 
 ```sh
