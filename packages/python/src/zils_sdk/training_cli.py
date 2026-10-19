@@ -25,7 +25,7 @@ def positive_seconds(value):
 
 def add_parser(subparsers):
     train = subparsers.add_parser(
-        "train", help="Submit and manage H2O or JevK5 text training with your Zils account"
+        "train", help="Submit and manage d3-mini text training with your Zils account"
     )
     commands = train.add_subparsers(dest="training_command", required=True)
     for name, help_text in (

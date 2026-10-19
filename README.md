@@ -21,7 +21,7 @@ is needed. Automatic retries are off because a request whose reply is lost may
 already have been billed.
 
 Use **`zils login`** for browser account sign-in, then `zils train` to submit and
-manage H2O and JevK5 text training. [Training CLI guide](docs/training-cli.md). Account
+manage d3-mini text training (H2O and JevK5 apply only to downloading older accepted results). [Training CLI guide](docs/training-cli.md). Account
 sessions and inference API keys are separate; browser login does not create a key.
 
 ## Ranking
