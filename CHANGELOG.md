@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- `zils train submit` accepts the d3-mini text profile the hosted service now
+  offers (`d3-mini-4.5b-v1`, base `zils-ai/d3-mini-4.5b-v1` at revision
+  `b54402a963373cc44713f18c9596c580e31cc68b`). Before this, the CLI refused every
+  new job because the service no longer offers H2O or JevK5.
+- New submissions require d3-mini. `zils train download` still accepts older
+  H2O and JevK5 results, and requires the pinned profile in d3-mini `model.json`
+  as it does for H2O. CLI training stays text-only; no version is bumped.
+
 ## 0.3.0 — 2026-10-13
 
 - Add optional `group_size` / `groupSize` to Python sync/async and TypeScript

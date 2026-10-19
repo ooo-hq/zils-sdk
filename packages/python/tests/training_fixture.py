@@ -11,7 +11,20 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 OWNER = "11111111-1111-4111-8111-111111111111"
+# The profile served by GET /v1/config since d3-mini was elected.
 MODEL = {
+    "id": "d3-mini-4.5b-v1",
+    "name": "d3-mini 4.5B",
+    "base": "zils-ai/d3-mini-4.5b-v1",
+    "base_revision": "b54402a963373cc44713f18c9596c580e31cc68b",
+    "runtime_revision": "d3-vendor-runtime-a475367/v1",
+    "prompt": "d3-native-v1",
+    "max_input_tokens": 4096,
+    "recipe": "d3-language-lora16-adamw/v1",
+    "calibration": "native-then-heldout-temperature/v1",
+    "inputs": {"images": 4, "video": True},
+}
+JEVK5_MODEL = {
     "id": "jevk5-4b-v0.3",
     "name": "JevK5 4B",
     "base": "alibiserikbay/JevK5",

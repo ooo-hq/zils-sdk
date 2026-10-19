@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from training_fixture import H2O_MODEL, MODEL, OWNER, ROUND, training_server
+from training_fixture import H2O_MODEL, JEVK5_MODEL, MODEL, OWNER, ROUND, training_server
 from zils_sdk import training
 from zils_sdk._training_http import TrainingError
 
@@ -21,7 +21,7 @@ def accepted(fixture, model=MODEL):
                 "model": model["id"],
                 "kind": "adapter",
                 "temperature": 1.25,
-                **({"profile": model} if model["id"] == training.H2O else {}),
+                **({"profile": model} if model["id"] in training.PROFILED else {}),
             }
         ).encode(),
     }
@@ -60,6 +60,30 @@ class DownloadsTests(unittest.TestCase):
 
     def client(self, fixture):
         return training.TrainingClient(session=fixture.session, root=self.root / "receipts")
+
+    def test_d3_download_requires_pinned_profile_and_older_results_still_download(self):
+        with training_server() as fixture:
+            d3_job, digest = accepted(fixture, MODEL)
+            result = self.client(fixture).download(d3_job["id"], self.out)
+            self.assertEqual(result["sha256"], digest)
+            self.assertEqual(json.loads((self.out / "model.json").read_text())["profile"], MODEL)
+            for index, model in enumerate((H2O_MODEL, JEVK5_MODEL)):
+                job, digest = accepted(fixture, model)
+                out = self.root / f"older-{index}"
+                self.assertEqual(self.client(fixture).download(job["id"], out)["sha256"], digest)
+            metadata = json.loads((self.out / "model.json").read_text())
+            del metadata["profile"]
+            (self.out / "model.json").write_text(json.dumps(metadata))
+            records = [
+                [name, hashlib.sha256((self.out / name).read_bytes()).hexdigest()]
+                for name in training.ARTIFACTS[:-1]
+            ]
+            forged = hashlib.sha256(json.dumps(records, separators=(",", ":")).encode()).hexdigest()
+            d3_job["result"]["delivery"]["sha256"] = forged
+            release = json.loads((self.out / "release.json").read_text())
+            (self.out / "release.json").write_text(json.dumps({**release, "sha256": forged}))
+            with self.assertRaisesRegex(ValueError, "accepted job"):
+                training.verify_checkpoint(self.out, d3_job, records, ROUND)
 
     def test_h2o_download_preserves_native_profile(self):
         with training_server() as fixture:

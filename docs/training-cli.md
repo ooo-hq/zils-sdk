@@ -2,7 +2,8 @@
 
 Install `@zils/cli` from npm using the
 [developer-tools setup](developer-tools.md#install-from-npm). The CLI
-supports H2O and JevK5 text datasets. Training execution remains in the hosted platform;
+trains the d3-mini text profile (`d3-mini-4.5b-v1`). H2O and JevK5 are retired for new
+jobs; the CLI only downloads their older accepted results. Training execution remains in the hosted platform;
 no GPU or model installation is needed on your laptop.
 
 ## Sign in
@@ -66,7 +67,7 @@ JSON results remain on stdout.
 Each UTF-8 JSONL case requires `id`, `group_id`, `family`, `state`, `question`, and
 `label`. Labels are strings: `"false"`/`"true"` for `noul`, a criterion key for
 `choice`, or a zero-based index string for `score`. Questions support at most
-255 outcomes. The server enforces the pinned model limits (JevK5 allows 16); the CLI never truncates data.
+255 outcomes. The server enforces the pinned model limits (d3-mini allows 4,096 input tokens); the CLI never truncates data.
 
 IDs must be globally unique. Related source groups and identical state/question
 pairs must stay in one split. Calibration and test families must match and occur
@@ -119,7 +120,7 @@ zils train cancel JOB_ID
 zils train cancel JOB_ID --yes --json
 ```
 
-Downloads require an accepted H2O or JevK5 result. The CLI verifies provider/job/file
+Downloads require an accepted d3-mini result, or an older accepted H2O or JevK5 result. The CLI verifies provider/job/file
 paths, release identity, model metadata and the backend-compatible checkpoint
 SHA-256 before publishing four files to a **new** directory. Existing paths are
 never overwritten. The filesystem must support hard links within the destination's

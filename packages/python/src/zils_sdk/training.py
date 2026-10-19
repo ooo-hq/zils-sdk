@@ -22,10 +22,17 @@ from ._training_http import TrainingError, read_json
 from .credentials import config_path
 
 H2O = "h2o-lightning-4b-v1.2.3"
+D3 = "d3-mini-4.5b-v1"
+# Base and revision as the hosted service pins them. New jobs train d3 only;
+# H2O and JevK5 stay so earlier accepted results can still be downloaded.
 MODEL_PINS = {
-    "jevk5-4b-v0.3": ("alibiserikbay/JevK5", "c4f7fdb3aeab5582336406e78d3bef11bf98833d"),
+    D3: ("zils-ai/d3-mini-4.5b-v1", "b54402a963373cc44713f18c9596c580e31cc68b"),
     H2O: ("h2oai/h2o-lightning-4b", "acaf0d4ea251e54de928c75ef4352670d33192d3"),
+    "jevk5-4b-v0.3": ("alibiserikbay/JevK5", "c4f7fdb3aeab5582336406e78d3bef11bf98833d"),
 }
+TRAINABLE = (D3,)
+# These profiles embed their full pinned profile in the checkpoint's model.json.
+PROFILED = (H2O, D3)
 ARTIFACTS = ("adapter_config.json", "adapter_model.safetensors", "model.json", "release.json")
 MAX_ARTIFACT_BYTES = 512 * 1024 * 1024
 MAX_RELEASE_BYTES = 1024 * 1024
@@ -43,11 +50,11 @@ STATUSES = {
 }
 
 
-def supported_model(model):
+def supported_model(model, *, trainable=False):
     return (
         isinstance(model, dict)
         and isinstance(model.get("id"), str)
-        and model["id"] in MODEL_PINS
+        and model["id"] in (TRAINABLE if trainable else MODEL_PINS)
         and (model.get("base"), model.get("base_revision")) == MODEL_PINS[model["id"]]
     )
 
@@ -258,10 +265,10 @@ def verify_checkpoint(directory, job, records, round_id):
         if (
             set(metadata)
             - {"version", "model", "kind", "temperature", "calibration"}
-            - ({"profile"} if model["id"] == H2O else set())
+            - ({"profile"} if model["id"] in PROFILED else set())
             or metadata["version"] != "zils-checkpoint/v1"
             or metadata["model"] != model["id"]
-            or (model["id"] == H2O and metadata.get("profile") != model)
+            or (model["id"] in PROFILED and metadata.get("profile") != model)
             or metadata["kind"] != "adapter"
             or type(temperature) not in (int, float)
             or not math.isfinite(temperature)
@@ -316,10 +323,8 @@ class TrainingClient:
         try:
             session = self._connect()
             model = session["config"].get("model")
-            if not supported_model(model):
-                raise ValueError(
-                    "CLI training requires a supported pinned H2O or JevK5 text profile."
-                )
+            if not supported_model(model, trainable=True):
+                raise ValueError("CLI training requires the supported pinned d3-mini text profile.")
             receipt = {
                 "version": 1,
                 "job_id": None,
