@@ -13,10 +13,15 @@ from zils_platform import coordinator
 
 
 @contextmanager
-def training_service():
+def training_service(*, pools=None):
     calls = []
+    storage_type = Store
+    if pools is not None:
+        from tests.test_model_pools import PoolStore
 
-    class Storage(Store):
+        storage_type = PoolStore
+
+    class Storage(storage_type):
         fail_split = None
 
         def signed(self, bucket, path, *, upload=False):
@@ -99,7 +104,7 @@ def training_service():
             return Handler
 
     store = Storage()
-    service = coordinator.Service(store, "http://127.0.0.1:8910", models.JEVK5)
+    service = coordinator.Service(store, "http://127.0.0.1:8910", models.D3, pools=pools)
     with server(store.handler()) as storage_url:
         store.url = storage_url
         with (

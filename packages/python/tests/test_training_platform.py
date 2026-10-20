@@ -133,9 +133,9 @@ class PlatformTrainingTests(unittest.TestCase):
             checkpoint.mkdir()
             (checkpoint / "adapter_config.json").write_text("{}")
             (checkpoint / "adapter_model.safetensors").write_bytes(b"fixture adapter")
-            models.write_metadata(checkpoint, temperature=1.3)
+            models.write_metadata(checkpoint, model=models.D3, temperature=1.3)
             digest = zils.checkpoint_hash(checkpoint)
-            profile = models.spec(models.JEVK5)
+            profile = models.spec(models.D3)
             round_id = "33333333-3333-4333-8333-333333333333"
             delivery = {"status": "accepted", "sha256": digest, "uid": 1}
             release = {
@@ -196,3 +196,30 @@ class PlatformTrainingTests(unittest.TestCase):
             self.assertIsNone(receipt["job_id"])
             for split, info in receipt["files"].items():
                 self.assertEqual(Path(info["path"]).read_bytes(), self.files[split].read_bytes())
+
+    def test_pool_discovery_selection_and_resume_use_real_coordinator(self):
+        from platform_training import training_service
+        from tests.test_model_pools import CONFIG, LITE
+        from zils import models
+
+        with training_service(pools=CONFIG) as service:
+            session = {
+                "account_id": "11111111-1111-4111-8111-111111111111",
+                "access_token": "owner-token",
+                "base_url": service.url,
+                "config": account.load_config(service.url),
+            }
+            client = TrainingClient(session=session, root=self.root / "training")
+            for pool, model in ((None, models.D3), ("d3-lite", LITE)):
+                result = client.submit(
+                    "routing",
+                    self.files,
+                    {"min_accuracy": 0.8, "min_brier_improvement": 0.01},
+                    True,
+                    pool=pool,
+                )
+                job = next(
+                    j for j in service.store.tables["fez_training_jobs"] if j["id"] == result["id"]
+                )
+                self.assertEqual(job["model_profile"], models.spec(model))
+                self.assertEqual(client.resume(result["id"], self.files)["status"], "validating")

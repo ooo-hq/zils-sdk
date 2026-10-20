@@ -25,7 +25,7 @@ def positive_seconds(value):
 
 def add_parser(subparsers):
     train = subparsers.add_parser(
-        "train", help="Submit and manage d3-mini text training with your Zils account"
+        "train", help="Submit and manage d3 pool text training with your Zils account"
     )
     commands = train.add_subparsers(dest="training_command", required=True)
     for name, help_text in (
@@ -55,6 +55,9 @@ def add_parser(subparsers):
                 )
         if name == "submit":
             command.add_argument("--name", required=True)
+            command.add_argument("--pool", help="General model pool (default d3-mini)")
+            command.add_argument("--base-channel", choices=("stable", "latest"))
+            command.add_argument("--model", help="Exact profile ID advertised by the service")
             command.add_argument("--min-accuracy", type=float, required=True)
             command.add_argument("--min-brier-improvement", type=float, required=True)
             command.add_argument(
@@ -134,6 +137,9 @@ def run(args):
                     "min_brier_improvement": args.min_brier_improvement,
                 },
                 args.allow_training_data_export,
+                pool=args.pool,
+                base_channel=args.base_channel,
+                model=args.model,
             )
             if action == "submit"
             else client.resume(args.job_id, files)

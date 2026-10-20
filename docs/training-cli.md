@@ -2,7 +2,10 @@
 
 Install `@zils/cli` from npm using the
 [developer-tools setup](developer-tools.md#install-from-npm). The CLI
-trains the d3-mini text profile (`d3-mini-4.5b-v1`). H2O and JevK5 are retired for new
+defaults to the d3-mini stable text profile. Optional `--pool d3-lite`,
+`--base-channel latest`, or `--model EXACT_PROFILE_ID` selects a qualified profile
+advertised by the service. Pool choices are d3-lite, d3-nano, d3-mini, d3-flash and d3;
+catalog membership alone does not mean a pool is available. H2O and JevK5 are retired for new
 jobs; the CLI only downloads their older accepted results. Training execution remains in the hosted platform;
 no GPU or model installation is needed on your laptop.
 
@@ -60,7 +63,7 @@ model quality; local tests do not spend credits or train on a live GPU.
 The export flag explicitly permits training data to be copied to approved workers.
 Both quality thresholds are required; acceptance may produce no qualifying model.
 Before creation, the CLI prints the active training account, service, files,
-thresholds and export consent to stderr. Submission uses that account's training
+selected immutable model, thresholds and export consent to stderr. Submission uses that account's training
 allowance/credit under the service's rules; the CLI does not estimate a price.
 JSON results remain on stdout.
 
@@ -74,6 +77,13 @@ pairs must stay in one split. Calibration and test families must match and occur
 in training. Limits are 128 MiB per split and 128 KiB per case. Image cases,
 invalid JSON, duplicate keys, and non-finite numbers are rejected before creating
 a job. Private snapshots ensure uploaded bytes match the validated file hashes.
+
+Selection is checked against fresh discovery before one create request. When
+combined, pool, channel and exact profile must agree. The exact profile is frozen
+in the local receipt and checked on creation, upload and resume; channel changes
+do not change an existing job. Without pool discovery, the mini stable default
+continues to work. These flags require this source version of the CLI; a source
+change does not publish an npm release or enable a hosted pool.
 
 ## Follow and recover a run
 
@@ -120,7 +130,7 @@ zils train cancel JOB_ID
 zils train cancel JOB_ID --yes --json
 ```
 
-Downloads require an accepted d3-mini result, or an older accepted H2O or JevK5 result. The CLI verifies provider/job/file
+Downloads require an accepted supported d3 result, or an older accepted H2O or JevK5 result. The CLI verifies provider/job/file
 paths, release identity, model metadata and the backend-compatible checkpoint
 SHA-256 before publishing four files to a **new** directory. Existing paths are
 never overwritten. The filesystem must support hard links within the destination's

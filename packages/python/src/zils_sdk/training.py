@@ -27,12 +27,28 @@ D3 = "d3-mini-4.5b-v1"
 # H2O and JevK5 stay so earlier accepted results can still be downloaded.
 MODEL_PINS = {
     D3: ("zils-ai/d3-mini-4.5b-v1", "b54402a963373cc44713f18c9596c580e31cc68b"),
+    "d3-mini-4.5b-zils-r5": (
+        "zils-ai/d3-mini-4.5b-zils-r5",
+        "e03e3a380a7cced24a00092a7eb0e1dd2290aade",
+    ),
+    "d3-lite-0.8b-v1": ("vllm-sr/d3-lite", "03560c26f5199c3c04129a2ccb38960c913635e0"),
+    "d3-nano-2.2b-v1": ("vllm-sr/d3-nano", "462efc366229ea268cf4eed3738b3fc4415e4817"),
+    "d3-flash-8.4b-v1": ("vllm-sr/d3-flash", "13dc1cc8ef23caefa765907e1d764751e5629f7d"),
+    "d3-26b-v1": ("vllm-sr/d3", "cf15549a78fc52598ddd1951f321c58372bbd64f"),
     H2O: ("h2oai/h2o-lightning-4b", "acaf0d4ea251e54de928c75ef4352670d33192d3"),
     "jevk5-4b-v0.3": ("alibiserikbay/JevK5", "c4f7fdb3aeab5582336406e78d3bef11bf98833d"),
 }
-TRAINABLE = (D3,)
+MODEL_POOLS = {
+    D3: "d3-mini",
+    "d3-mini-4.5b-zils-r5": "d3-mini",
+    "d3-lite-0.8b-v1": "d3-lite",
+    "d3-nano-2.2b-v1": "d3-nano",
+    "d3-flash-8.4b-v1": "d3-flash",
+    "d3-26b-v1": "d3",
+}
+TRAINABLE = tuple(MODEL_POOLS)
 # These profiles embed their full pinned profile in the checkpoint's model.json.
-PROFILED = (H2O, D3)
+PROFILED = (H2O, *TRAINABLE)
 ARTIFACTS = ("adapter_config.json", "adapter_model.safetensors", "model.json", "release.json")
 MAX_ARTIFACT_BYTES = 512 * 1024 * 1024
 MAX_RELEASE_BYTES = 1024 * 1024
@@ -57,6 +73,65 @@ def supported_model(model, *, trainable=False):
         and model["id"] in (TRAINABLE if trainable else MODEL_PINS)
         and (model.get("base"), model.get("base_revision")) == MODEL_PINS[model["id"]]
     )
+
+
+def select_model(config, *, pool=None, base_channel=None, model=None):
+    """Resolve fresh discovery, then include the exact profile to reject channel races."""
+    try:
+        if base_channel is not None and base_channel not in ("stable", "latest"):
+            raise ValueError("Invalid base channel")
+        requested = model.get("id") if isinstance(model, dict) else model
+        if requested is not None and (
+            not isinstance(requested, str) or requested not in MODEL_POOLS
+        ):
+            raise ValueError("Unknown model")
+        selected_pool = pool if pool is not None else MODEL_POOLS.get(requested, "d3-mini")
+        if not isinstance(selected_pool, str) or selected_pool not in MODEL_POOLS.values():
+            raise ValueError("Unknown pool")
+        channel = base_channel or "stable"
+        if "pools" in config:
+            entry = config["pools"][selected_pool]
+            if entry["id"] != selected_pool or entry["enabled"] is not True:
+                raise ValueError("Disabled pool")
+            channels = entry["channels"]
+            if requested is not None and base_channel is None:
+                channel = next(c for c in ("stable", "latest") if channels[c]["id"] == requested)
+            selected = channels[channel]
+            available = entry["availability"][channel]
+            if available["training_enabled"] is not True or available["inputs"]["text"] is not True:
+                raise ValueError("No qualified text capacity")
+        else:
+            if selected_pool != "d3-mini":
+                raise ValueError("Pool discovery unavailable")
+            channels = config.get("channels", {"stable": config.get("model")})
+            if requested is not None and base_channel is None:
+                channel = next(
+                    c
+                    for c in ("stable", "latest")
+                    if isinstance(channels.get(c), dict) and channels[c]["id"] == requested
+                )
+            selected = channels[channel]
+        if (
+            not supported_model(selected, trainable=True)
+            or MODEL_POOLS[selected["id"]] != selected_pool
+            or (requested is not None and requested != selected["id"])
+            or (isinstance(model, dict) and model != selected)
+        ):
+            raise ValueError("Profile mismatch")
+        return {
+            "model": selected,
+            **({"pool": pool} if pool is not None else {}),
+            **({"base_channel": base_channel} if base_channel is not None else {}),
+        }
+    except (ValueError, TypeError, KeyError, AttributeError, StopIteration):
+        raise ValueError(
+            "Select an available pinned d3 profile and matching pool/channel; the pinned d3-mini default remains supported."
+        ) from None
+
+
+def verify_job_profile(job, receipt):
+    if "model" in receipt and job["model"] != receipt["model"]:
+        raise ValueError("The job profile changed from the original submission receipt.")
 
 
 def validate_grant(descriptor: dict, config: dict, *, job_id: str, filename: str, use: str) -> dict:
@@ -311,7 +386,7 @@ class TrainingClient:
         if directory.is_dir() and not directory.is_symlink():
             shutil.rmtree(directory)
 
-    def submit(self, name, files, policy, consent):
+    def submit(self, name, files, policy, consent, *, pool=None, base_channel=None, model=None):
         if not isinstance(policy, dict) or set(policy) != {"min_accuracy", "min_brier_improvement"}:
             raise ValueError("Supply both training acceptance thresholds.")
         policy = training_data.validate_policy(
@@ -322,21 +397,26 @@ class TrainingClient:
         retain = False
         try:
             session = self._connect()
-            model = session["config"].get("model")
-            if not supported_model(model, trainable=True):
-                raise ValueError("CLI training requires the supported pinned d3-mini text profile.")
+            selection = select_model(
+                self._request(session, "GET", "/v1/config"),
+                pool=pool,
+                base_channel=base_channel,
+                model=model,
+            )
             receipt = {
                 "version": 1,
                 "job_id": None,
                 "account_id": session["account_id"],
                 "base_url": session["base_url"],
                 "stage": "creating",
+                "model": selection["model"],
                 **prepared,
             }
             print(
                 f"Training account: {session['account_id']}\n"
                 f"Training service: {session['base_url']}\n"
                 f"Job: {name}\n"
+                f"Model: {selection['model']['id']}\n"
                 + "".join(
                     f"{split}: {json.dumps(str(files[split]))} "
                     f"({prepared['files'][split]['count']} cases, "
@@ -359,12 +439,13 @@ class TrainingClient:
                     "/v1/jobs",
                     {
                         "name": name,
-                        "model": model,
+                        **selection,
                         "acceptance": policy,
                         "allow_training_data_export": True,
                     },
                 )
                 job = _job(response)
+                verify_job_profile(job, receipt)
             except (TrainingError, ValueError) as error:
                 # Grant generation can fail after creation, including with a 4xx response.
                 raise TrainingError(
@@ -388,6 +469,7 @@ class TrainingClient:
     def _upload_and_submit(self, session, receipt, response):
         job_id = receipt["job_id"]
         job = _job(response, job_id)
+        verify_job_profile(job, receipt)
         if job["status"] != "uploading":
             receipt["stage"] = "submitted"
             self._save(receipt)
@@ -446,6 +528,7 @@ class TrainingClient:
         receipt["stage"] = "submitting"
         self._save(receipt)
         result = _job(self._request(session, "POST", f"/v1/jobs/{job_id}/submit", {}), job_id)
+        verify_job_profile(result, receipt)
         if result["status"] == "uploading":
             raise ValueError(f"Submission has not been confirmed. Resume job {job_id}.")
         receipt["stage"] = "submitted"
@@ -471,6 +554,7 @@ class TrainingClient:
                         "Dataset bytes changed since this job was created. Resume requires the original files."
                     )
                 job = _job(self._request(session, "GET", f"/v1/jobs/{job_id}"), job_id)
+                verify_job_profile(job, receipt)
                 if job["status"] != "uploading":
                     receipt["stage"] = "submitted"
                     self._save(receipt)
