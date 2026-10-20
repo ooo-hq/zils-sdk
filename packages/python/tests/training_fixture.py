@@ -55,6 +55,7 @@ def training_server():
         tamper_grant = None
         artifacts = {}
         download_mode = None
+        returned_model = None
 
         def grant(self, job_id, name, upload=True):
             bucket = "fez-training-data" if upload else "fez-training-models"
@@ -109,6 +110,8 @@ def training_server():
                 return self.reply(401, {})
             if self.command == "GET" and path == "/v1/account":
                 return self.reply(200, {"account_id": OWNER})
+            if self.command == "GET" and path == "/v1/config":
+                return self.reply(200, fixture.session["config"])
             if self.command == "GET" and path == "/v1/jobs":
                 return self.reply(200, {"jobs": list(fixture.jobs.values()), "models": []})
             if self.command == "POST" and path == "/v1/jobs":
@@ -118,7 +121,7 @@ def training_server():
                     "id": job_id,
                     "name": body["name"],
                     "status": "uploading",
-                    "model": MODEL,
+                    "model": fixture.returned_model or body["model"],
                     "workflow": None,
                     "result": None,
                 }
