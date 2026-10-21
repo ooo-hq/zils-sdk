@@ -6,6 +6,7 @@ import {
 import { prepareRank, rankAnswers, type RankRequest, type RankResult } from './ranking.js';
 
 export type { RankRequest, RankResult, RankedItem } from './ranking.js';
+export { record } from './fit.js';
 
 export {
   noul, choice, score, APIError, APIConnectionError, APITimeoutError,

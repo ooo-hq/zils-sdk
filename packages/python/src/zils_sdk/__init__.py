@@ -21,6 +21,7 @@ from typesafe_sdk import (
 
 from ._ranking import RankedItem
 from .client import AsyncZilsClient, RankResult, SystemOneResponse, Usage, ZilsClient
+from .fit import record
 
 __version__ = "0.3.0"
 __all__ = [
@@ -46,4 +47,5 @@ __all__ = [
     "Usage",
     "ZilsClient",
     "ZilsError",
+    "record",
 ]
