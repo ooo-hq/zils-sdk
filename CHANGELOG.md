@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- `zils login` now offers to create an API key for this machine after browser
+  sign-in ("Create an API key for this machine? [Y/n]"), so `zils decide` and
+  `zils fit run` work without a second login. The key is named after the host,
+  saved owner-only, and can be revoked on zils.ai. Without a terminal, or with a
+  key already saved, nothing is created.
+- `zils fit scan` and `zils fit run` print grouped, aligned results with colour in
+  a terminal (plain text when piped, with `NO_COLOR` or `TERM=dumb`; `--json` is
+  unchanged). Free-text calls are counted and listed only with `--all`. `run`
+  shows live progress.
+- The scanner names arrow and generic functions, reads schemas defined above the
+  call (`const schema = z.object(...)`), treats `z.enum(variable)` and
+  classification fields such as `category: z.string()` as choices with TODO
+  options, ignores providers mentioned in comments, lists one drop-in per file,
+  and counts `.decide(` only with a questions body nearby. On Inbox Zero it now
+  finds 6 decisions and 1 drop-in instead of 1 and 4.
+- `zils fit run` stops after the first 5 requests fail and reports the error,
+  instead of sending the whole log.
+
 ## 0.4.0 — 2026-10-21
 
 - Add `zils fit`. `zils fit scan` lists model calls that make typed decisions

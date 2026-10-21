@@ -15,7 +15,8 @@ anything:
 zils fit scan . --questions questions.json
 ```
 
-Each line shows a call site, its function and what was found:
+Results are grouped. Free-text calls are only counted; add `--all` to list them,
+or `--json` for machine-readable output. Each call shows what was found:
 
 - `noul`, `choice`, `score`: a decision Zils can answer. The scan drafts a Zils
   question for it in `questions.json`.
@@ -64,6 +65,9 @@ to run.
 zils fit run --questions questions.json --log fit-log.jsonl
 ```
 
+It needs an API key: `zils login` offers to create one after browser sign-in,
+or use `zils login --api-key`.
+
 This sends **one paid request per distinct logged input** to `zils-shared`
 (stock d3-mini; `--model` picks another). `--max-rows` (default 500) caps the
 spend. For each question it picks, on half of the inputs, the lowest confidence
@@ -80,7 +84,8 @@ reports the other half:
 
 By default the threshold must clear the target at the 95% lower confidence bound;
 `--point-estimate` uses the measured rate instead. Failed requests are listed and
-left out, never counted as disagreements.
+left out, never counted as disagreements; if the first five all fail, the run
+stops and shows the error.
 
 **Agreement is not accuracy.** The logged answers are your current model's, so the
 report measures whether Zils can replace that call without changing behaviour.

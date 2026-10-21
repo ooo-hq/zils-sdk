@@ -3,6 +3,8 @@
 import argparse
 import getpass
 import json
+import os
+import socket
 import sys
 from pathlib import Path
 
@@ -72,6 +74,27 @@ def parser() -> argparse.ArgumentParser:
     return root
 
 
+def offer_key() -> None:
+    """After browser sign-in, offer an inference key so decide and fit work without a second step."""
+    if os.environ.get("ZILS_API_KEY", "").strip() or config_path().exists():
+        return
+    if not sys.stdin.isatty():
+        print("To call models from this machine, run zils login --api-key.", file=sys.stderr)
+        return
+    sys.stderr.write("Create an API key for this machine, for zils decide and zils fit? [Y/n] ")
+    sys.stderr.flush()
+    if sys.stdin.readline().strip().lower() not in ("", "y", "yes"):
+        print("No key created. Run zils login --api-key when you need one.", file=sys.stderr)
+        return
+    name = f"zils CLI on {socket.gethostname()}"[:80]
+    key, url = account.create_api_key(name)
+    save_credentials(key, url)
+    print(
+        f'Created API key "{name}" and saved it privately; revoke it any time at zils.ai/keys.',
+        file=sys.stderr,
+    )
+
+
 def request(args):
     if args.body is not None:
         if args.questions is not None:
@@ -120,6 +143,7 @@ def run(args) -> None:
                     "--base-url requires --api-key. Use ZILS_TRAINING_URL for account sign-in."
                 )
             print(json.dumps(account.login()))
+            offer_key()
             return
         if args.api_key == "-":
             key = sys.stdin.readline(8192).strip()

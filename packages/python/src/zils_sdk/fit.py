@@ -104,13 +104,28 @@ CALL = re.compile(
     r"\bgenerate(?:Object|Text)\(|\bllm\.invoke\(|\bcompletion\("
 )
 # Calls already in the Jev decision-API shape only need a new base URL and model.
-JEV = re.compile(r"/v1/systemone|/decisions[\"'/]|\.decide\(|typesafe/jev|[\"']jev-[\d.]+")
-WINDOW = 20  # ponytail: fixed line window; use a parser if call sites get long
-DEF = re.compile(r"(?:def|function)\s+(\w+)\s*\((?:.*?\)\s*(?:->\s*(\w+)|:\s*(\w+))?)?")
+JEV = re.compile(r"/v1/systemone|/decisions[\"'/]|typesafe/jev|[\"']jev-[\d.]+")
+DECIDE = re.compile(r"\.decide\(")  # a Jev call only when a questions body is nearby
+WINDOW = 20  # ponytail: fixed line windows; use a parser if call sites get long
+LOOKBACK = 80  # lines searched above a call for its function and schema
+DEF = re.compile(
+    r"(?:def|function)\s+(\w+)\s*[<(](?:.*?\)\s*(?:->\s*(\w+)|:\s*(\w+))?)?"
+    r"|(?:const|let)\s+(\w+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*(?::[^=]*)?=>"
+)
+COMMENT = re.compile(r"\s*(?://|#|\*|/\*)")
 NOUL = re.compile(
     r"startswith\(\s*[\"'](?:y|yes|true)[\"']|==\s*[\"'](?:yes|true)[\"']|z\.boolean\(\)", re.I
 )
-ENUM = re.compile(r"(\w+)\s*:\s*z\.enum\(\s*\[([^\]]+)\]|Literal\[([^\]]+)\]")
+# A literal option list is drafted as criteria; a variable one (z.enum(statuses)) is left TODO.
+ENUM = re.compile(
+    r"(\w+)\s*:\s*z\.(?:enum|nativeEnum)\(\s*(?:\[([^\]]*)\]|[\w.]+)|Literal\[([^\]]+)\]"
+)
+# ponytail: a free-text field with a classification name, checked against a list in code;
+# a type-aware parser would read the allowed values instead of guessing from the name.
+LABEL_FIELD = re.compile(
+    r"\b(category|label|status|ruleName|rule|intent|action|classification|priority|"
+    r"sentiment|decision|verdict)\s*:\s*z\s*\.string\(\)"
+)
 SCORE = re.compile(r"\bint\(|parseInt\(|\bscale\b", re.I)
 ASKED = re.compile(r"[\"'`]([^\"'`]*?\?)")
 LEVEL = re.compile(r"\b(\d)\s+([a-z][^,.;\"'\n]*)")
@@ -129,12 +144,14 @@ def _classify(text, name, returns):
     asked = ASKED.search(text)
     question = {"instructions": asked.group(1).strip()} if asked else {}
     if m := ENUM.search(text):
-        options = re.findall(r"[\"']([^\"']+)[\"']", m.group(2) or m.group(3))
+        options = re.findall(r"[\"']([^\"']+)[\"']", m.group(2) or m.group(3) or "")
         return m.group(1) or name, {
             "type": "choice",
             **question,
             "criteria": dict.fromkeys(options),
         }
+    if m := LABEL_FIELD.search(text):
+        return m.group(1), {"type": "choice", **question, "criteria": None}
     if NOUL.search(text) or returns in ("bool", "boolean"):
         return name, {"type": "noul", **question}
     if SCORE.search(text) or returns == "int":
@@ -165,29 +182,54 @@ def scan(root, include_tests=False):
     )
     found = []
     for path in files:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-        calls = []
+        # Comments are blanked, keeping line numbers: a model named in a comment is not a call.
+        lines = [
+            "" if COMMENT.match(line) else line
+            for line in path.read_text(encoding="utf-8", errors="replace").splitlines()
+        ]
+        calls, drop_in = [], False
         for i, line in enumerate(lines):
             # ponytail: one call per 8 lines; a parser would split adjacent calls properly
-            if (CALL.search(line) or JEV.search(line)) and not (calls and i - calls[-1] < 8):
+            decide = DECIDE.search(line) and "questions" in "\n".join(lines[i : i + 8])
+            if (CALL.search(line) or JEV.search(line) or decide) and not (
+                calls and i - calls[-1] < 8
+            ):
                 calls.append(i)
         for n, i in enumerate(calls):
-            name, returns, start = "unnamed", None, max(i - 14, 0)
-            for j in range(i, max(i - 15, -1), -1):
+            name, returns, start = path.stem, None, max(i - 14, 0)
+            for j in range(i, max(i - LOOKBACK, -1), -1):
                 if d := DEF.search(lines[j]):
-                    name, returns, start = d.group(1), d.group(2) or d.group(3), j
+                    name, returns, start = d.group(1) or d.group(4), d.group(2) or d.group(3), j
                     break
             end = min(i + WINDOW, calls[n + 1] if n + 1 < len(calls) else len(lines))
             text = "\n".join(lines[start:end])
             location = f"{path}:{i + 1}"
-            if JEV.search(text) and (JEV.search(lines[i]) or "questions" in text):
-                found.append(
-                    {"location": location, "name": name, "kind": "drop-in", "question": None}
-                )
+            if JEV.search(lines[i]) or (
+                (JEV.search(text) or DECIDE.search(lines[i])) and "questions" in text
+            ):
+                if not drop_in:  # one switch per file, however many providers it lists
+                    found.append(
+                        {
+                            "location": location,
+                            "name": name,
+                            "function": name,
+                            "kind": "drop-in",
+                            "question": None,
+                        }
+                    )
+                drop_in = True
                 continue
             qid, question = _classify(text, name, returns)
             kind = "decision" if question else "text"
-            found.append({"location": location, "name": qid, "kind": kind, "question": question})
+            found.append(
+                {
+                    "location": location,
+                    "name": qid,
+                    "function": name,
+                    "kind": kind,
+                    "question": question,
+                }
+            )
     return found
 
 
@@ -200,10 +242,12 @@ def draft_questions(found):
             continue
         draft = {"type": question["type"], "instructions": question.get("instructions") or "TODO"}
         if question["type"] == "choice":
-            draft["criteria"] = question["criteria"]
+            draft["criteria"] = question["criteria"] or {"TODO option": "TODO description"}
         elif question["type"] == "score":
             draft["criteria"] = question["criteria"] or ["TODO lowest", "TODO highest"]
-        questions[item["name"]] = draft
+        # Two calls deciding a field of the same name are different questions.
+        qid = item["name"] if item["name"] not in questions else item["function"]
+        questions[qid if qid not in questions else f"{qid}_{len(questions)}"] = draft
     return questions
 
 
@@ -245,7 +289,9 @@ def _check_half(row_id):
     return int(hashlib.sha256(row_id.encode()).hexdigest(), 16) % 2 == 1
 
 
-def measure(rows, questions, predict, *, target=0.95, min_support=30, conservative=True):
+def measure(
+    rows, questions, predict, *, target=0.95, min_support=30, conservative=True, stop_after=5
+):
     """Pick a confidence threshold per question on one half of the rows; report the other.
 
     `predict(state, questions)` returns Zils answers by question id. A row that fails
@@ -261,6 +307,12 @@ def measure(rows, questions, predict, *, target=0.95, min_support=30, conservati
             results[row["id"]] = {q: _prediction(asked[q], answers[q]) for q in asked}
         except Exception as error:
             errors.append({"id": row["id"], "error": f"{type(error).__name__}: {error}"})
+            if not results and len(errors) >= stop_after:
+                # The service is failing outright; don't keep sending the rest of the log.
+                raise ValueError(
+                    f"The first {stop_after} requests failed, so no more were sent. "
+                    f"Last error: {errors[-1]['error']}"
+                ) from None
     report = {"rows": len(results), "errors": errors, "questions": {}}
     handled_rows = {}
     for qid, question in questions.items():
