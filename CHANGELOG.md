@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add `zils fit`. `zils fit scan` lists model calls that make typed decisions
+  (OpenAI, Anthropic, Vercel AI SDK, LangChain; Jev-shaped calls as drop-ins),
+  skips test files, and drafts Zils questions. `record` (Python decorator and
+  TypeScript wrapper) shadow-logs a decision function's inputs and answers to an
+  owner-only JSONL file without changing its behaviour. `zils fit run` replays the
+  log on Zils (one paid request per input, capped by `--max-rows`) and reports,
+  per question, the share Zils handles and its agreement with the logged answers,
+  with thresholds picked on half the inputs and checked on the other half.
+  Agreement with your current model is not accuracy; see `docs/fit.md`.
 - `zils train submit` accepts the d3-mini text profile the hosted service now
   offers (`d3-mini-4.5b-v1`, base `zils-ai/d3-mini-4.5b-v1` at revision
   `b54402a963373cc44713f18c9596c580e31cc68b`). Before this, the CLI refused every

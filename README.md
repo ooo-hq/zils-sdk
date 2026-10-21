@@ -24,6 +24,12 @@ Use **`zils login`** for browser account sign-in, then `zils train` to submit an
 manage d3-mini text training (H2O and JevK5 apply only to downloading older accepted results). [Training CLI guide](docs/training-cli.md). Account
 sessions and inference API keys are separate; browser login does not create a key.
 
+## Where does Zils fit?
+
+`zils fit scan` finds the model calls in your code that make typed decisions,
+`record` logs what they receive and answer, and `zils fit run` replays that log on
+Zils to show how much of the traffic it can take. See [zils fit](docs/fit.md).
+
 ## Ranking
 
 SDK version 0.2.0 adds `rank(...)` for ordering 2–10 JSON items against a
