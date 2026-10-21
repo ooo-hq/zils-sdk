@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.2 — 2026-10-21
 
 - One sentence to paste into a coding agent: "Use `npx -y @zils/cli fit agent` to
   install the Zils skill, then see where Zils fits in this repo." The skill checks
