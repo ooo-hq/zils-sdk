@@ -51,6 +51,43 @@ def frustration(ticket: str) -> int:
         json_data={"model": model, "state": state, "questions": questions},
     )
 """,
+    # Inbox Zero patterns: arrow functions, schemas above the call, string label fields,
+    # providers named in comments, several provider cases in one file, agent .decide().
+    "web/status.ts": """export const threadStatus = async ({ thread }: Args) => {
+  const statuses = definitions.map((d) => d.systemType);
+  // Model: typesafe/jev-1.13 is mentioned here only in a comment.
+  const schema = z.object({
+    status: z.enum(statuses),
+    rationale: z.string(),
+  });
+  const aiResponse = await generateObject({ ...modelOptions, prompt, schema });
+  return aiResponse.object;
+};
+""",
+    "web/category.ts": """export async function categorizeSenderWithLlm<T>({ sender }: Args) {
+  const aiResponse = await generateObject({
+    prompt,
+    schema: z.object({ rationale: z.string(), category: z.string() }),
+  });
+  return aiResponse.object;
+}
+""",
+    "web/providers.ts": """export function createConfig(provider: string) {
+  switch (provider) {
+    case "typesafe":
+      return systemOne({ url: "https://api.typesafe.ai/v1/systemone", questions });
+    case "openrouter":
+      return systemOne({ url: "https://openrouter.ai/api/alpha/decisions", questions });
+    case "other":
+      return systemOne({ url: "https://example.com/v1/systemone", questions });
+  }
+}
+""",
+    "worker/agent.ts": """async step(observation) {
+  const decision = await this.options.decide(observation, history, signal);
+  return decision;
+}
+""",
     "tests/test_triage.py": """def test_mock():
     client.chat.completions.create(model="x", messages=[])
 """,
@@ -113,8 +150,15 @@ class ScanTests(unittest.TestCase):
                     "decide": "drop-in",
                     "is_urgent": "decision",
                     "department": "decision",
+                    "status": "decision",
+                    "category": "decision",
+                    "createConfig": "drop-in",
                 },
             )
+            by_name = {f["name"]: f for f in scan(tmp)}
+            self.assertEqual(by_name["status"]["function"], "threadStatus")
+            self.assertEqual(by_name["category"]["function"], "categorizeSenderWithLlm")
+            self.assertNotIn("step", {f["function"] for f in scan(tmp)})  # agent .decide()
             questions = draft_questions(scan(tmp))
             self.assertEqual(
                 questions["is_urgent"],
@@ -162,6 +206,20 @@ class MeasureTests(unittest.TestCase):
         self.assertEqual(report["rows_fully_handled"], 0.0)
 
 
+class StopEarlyTests(unittest.TestCase):
+    def test_stops_after_the_first_failures_without_sending_the_rest(self):
+        calls = []
+
+        def predict(state, asked):
+            calls.append(state)
+            raise ConnectionError("503 Model connection failed")
+
+        rows = [{"id": f"r{i}", "state": f"s{i}", "labels": {"q": True}} for i in range(50)]
+        with self.assertRaisesRegex(ValueError, "first 5 requests failed.*503"):
+            measure(rows, {"q": {"type": "noul"}}, predict)
+        self.assertEqual(len(calls), 5)
+
+
 class FitCliTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -183,7 +241,9 @@ class FitCliTests(unittest.TestCase):
         (self.tmp / "app/triage.py").write_text(APP["app/triage.py"])
         result = self.cli("scan", "app", "--questions", "questions.json")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("is_urgent\tnoul", result.stdout)
+        self.assertIn("Decisions Zils can answer  1", result.stdout)
+        self.assertRegex(result.stdout, r"yes/no\s+is_urgent\s+triage.py:\d+")
+        self.assertNotIn("\033[", result.stdout)  # piped output stays plain
         log = self.tmp / "fit-log.jsonl"
         log.write_text(
             "".join(

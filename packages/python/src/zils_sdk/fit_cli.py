@@ -1,11 +1,21 @@
 """`zils fit`: find decision calls in a codebase, then measure Zils on logged traffic."""
 
 import json
+import os
 import sys
 from pathlib import Path
 
 from .credentials import load_credentials
 from .fit import draft_questions, measure, read_log, scan
+
+KIND = {"noul": "yes/no", "choice": "choice", "score": "score"}
+STATUS = {
+    "ok": ("✓ ok", "32"),
+    "check_miss": ("! missed on check half", "33"),
+    "no_threshold": ("✗ below target", "31"),
+    "too_few_rows": ("… too few inputs", "33"),
+    "not_logged": ("– not logged", "2"),
+}
 
 
 def add_parser(subparsers):
@@ -17,6 +27,7 @@ def add_parser(subparsers):
     find.add_argument("path", nargs="?", default=".", type=Path)
     find.add_argument("--questions", type=Path, help="Write draft Zils questions (JSON) here")
     find.add_argument("--include-tests", action="store_true", help="Also scan test files")
+    find.add_argument("--all", action="store_true", help="Also list the free-text calls")
     find.add_argument("--json", action="store_true", help="Write findings as JSON to stdout")
     run = commands.add_parser(
         "run", help="Replay a fit log on Zils (one paid request per logged input)"
@@ -35,29 +46,99 @@ def add_parser(subparsers):
     run.add_argument("--json", action="store_true", help="Write the report as JSON to stdout")
 
 
+def painter(stream):
+    """ANSI styling for a terminal; plain text for pipes, files, NO_COLOR and TERM=dumb."""
+    on = stream.isatty() and not os.environ.get("NO_COLOR") and os.environ.get("TERM") != "dumb"
+    return lambda text, code: f"\033[{code}m{text}\033[0m" if on else text
+
+
+def _table(rows, paint):
+    """Rows of (text, style) cells, padded to the widest cell in each column."""
+    widths = [max(len(row[i][0]) for row in rows) for i in range(len(rows[0]))]
+    widths[-1] = 0  # never pad the last column
+    for row in rows:
+        cells = [
+            paint(text.ljust(w), style) if style else text.ljust(w)
+            for (text, style), w in zip(row, widths, strict=True)
+        ]
+        print("   " + "  ".join(cells))
+
+
 def _scan(args):
     found = scan(args.path, args.include_tests)
     if args.json:
         print(json.dumps(found, indent=2))
     else:
-        labels = {
-            "decision": None,
-            "drop-in": "drop-in: Jev API shape, change base URL and model",
-            "text": "skip: free text",
-        }
-        for item in found:
-            kind = labels[item["kind"]] or item["question"]["type"]
-            print(f"{item['location']}\t{item['name']}\t{kind}")
-    decisions = sum(item["kind"] != "text" for item in found)
-    print(f"{decisions} of {len(found)} model calls make typed decisions.", file=sys.stderr)
+        paint = painter(sys.stdout)
+        root = args.path.resolve()
+        base = root if root.is_dir() else root.parent
+
+        def where(item):
+            path, line = item["location"].rsplit(":", 1)
+            return f"{Path(path).resolve().relative_to(base)}:{line}"
+
+        decisions = [f for f in found if f["kind"] == "decision"]
+        drop_ins = [f for f in found if f["kind"] == "drop-in"]
+        text = [f for f in found if f["kind"] == "text"]
+        print()
+        print(
+            f" {paint('zils fit scan', '1')}  {paint('·', '2')}  {root.name}  "
+            f"{paint('·', '2')}  {len(found)} model call{'' if len(found) == 1 else 's'}"
+        )
+        if decisions:
+            print(
+                f"\n {paint('●', '32')} {paint('Decisions Zils can answer', '1')}  "
+                f"{paint(str(len(decisions)), '32')}"
+            )
+            _table(
+                [
+                    [
+                        (KIND[f["question"]["type"]], "36"),
+                        (f["name"], "1"),
+                        ("" if f["function"] == f["name"] else f["function"], ""),
+                        (where(f), "2"),
+                    ]
+                    for f in decisions
+                ],
+                paint,
+            )
+        if drop_ins:
+            print(
+                f"\n {paint('◆', '35')} {paint('Already Jev-compatible', '1')}  "
+                f"{paint(str(len(drop_ins)), '35')}  "
+                f"{paint('point it at Zils: change the base URL and model', '2')}"
+            )
+            _table([[(f["function"], "1"), (where(f), "2")] for f in drop_ins], paint)
+        if text:
+            hint = "" if args.all else "  (--all to list)"
+            print(
+                f"\n {paint('○', '2')} {paint('Free-text generation, skipped', '2')}  "
+                f"{paint(str(len(text)), '2')}{paint(hint, '2')}"
+            )
+            if args.all:
+                _table([[(f["function"], "2"), (where(f), "2")] for f in text], paint)
+        if not found:
+            print(f"\n {paint('No model calls found.', '2')}")
+        if decisions and not args.questions:
+            print(
+                f"\n {paint('Next', '1')}  zils fit scan "
+                f"{'' if args.path == Path('.') else str(args.path) + ' '}"
+                "--questions questions.json"
+            )
+        print()
     if args.questions:
         questions = draft_questions(found)
         if not questions:
             raise ValueError("No decision calls to draft questions for.")
         args.questions.write_text(json.dumps(questions, indent=2) + "\n", encoding="utf-8")
+        todo = sum("TODO" in json.dumps(q) for q in questions.values())
         print(
-            f"Wrote {len(questions)} draft questions to {args.questions}; "
-            "check each TODO before running.",
+            f"Wrote {len(questions)} draft questions to {args.questions}"
+            + (
+                f"; fill in {todo} with TODO, then wrap each decision with record()."
+                if todo
+                else "; wrap each decision with record() next."
+            ),
             file=sys.stderr,
         )
 
@@ -77,31 +158,70 @@ def _run(args):
         raise ValueError(f"No logged answers in {args.log} match the questions.")
     if len(rows) > args.max_rows:
         raise ValueError(f"{len(rows)} logged inputs exceed --max-rows {args.max_rows}.")
-    print(f"Sending {len(rows)} requests to {args.model}.", file=sys.stderr)
+    err = painter(sys.stderr)
+    live = sys.stderr.isatty()
+    done = [0]
     with ZilsClient(**load_credentials(), timeout=args.timeout) as client:
 
         def predict(state, asked):
-            result = client.system_one(state=state, questions=asked, model=args.model)
-            return result.model_dump(mode="json")["answers"]
+            try:
+                result = client.system_one(state=state, questions=asked, model=args.model)
+                return result.model_dump(mode="json")["answers"]
+            finally:
+                done[0] += 1
+                if live:
+                    print(
+                        f"\r {err('Asking', '2')} {args.model}  {done[0]}/{len(rows)}",
+                        end="",
+                        file=sys.stderr,
+                        flush=True,
+                    )
 
-        report = measure(
-            rows, questions, predict, target=args.target, conservative=not args.point_estimate
-        )
+        if not live:
+            print(f"Sending {len(rows)} requests to {args.model}.", file=sys.stderr)
+        try:
+            report = measure(
+                rows, questions, predict, target=args.target, conservative=not args.point_estimate
+            )
+        finally:
+            if live:
+                print("\r\033[K", end="", file=sys.stderr)
     report["model"] = args.model
     if args.json:
         print(json.dumps(report, indent=2))
     else:
-        print("question\tstatus\tthreshold\thandled\tagreement when handled\tagreement overall")
-        for qid, q in report["questions"].items():
-            fmt = lambda v, pct=True: "-" if v is None else f"{v:.1%}" if pct else f"{v:.3f}"  # noqa: E731
-            print(
-                f"{qid}\t{q['status']}\t{fmt(q['threshold'], False)}\t{fmt(q['handled'])}\t"
-                f"{fmt(q['accuracy_handled'])}\t{fmt(q['agreement_all'])}"
-            )
+        paint = painter(sys.stdout)
+
+        def pct(value):
+            return "–" if value is None else f"{value:.1%}"
+
+        print()
         print(
-            f"Inputs Zils handles completely: {report['rows_fully_handled']:.1%} "
-            "(check half; the rest go to your current model)."
+            f" {paint('zils fit run', '1')}  {paint('·', '2')}  {args.model}  "
+            f"{paint('·', '2')}  {report['rows']} inputs  {paint('·', '2')}  "
+            f"target {args.target:.0%}\n"
         )
+        header = [(h, "2") for h in ("question", "status", "handled", "agreement", "threshold")]
+        body = []
+        for qid, q in report["questions"].items():
+            label, style = STATUS[q["status"]]
+            threshold = "–" if q["threshold"] is None else f"{q['threshold']:.2f}"
+            body.append(
+                [
+                    (qid, "1"),
+                    (label, style),
+                    (pct(q["handled"]), ""),
+                    (pct(q["accuracy_handled"]), ""),
+                    (threshold, "2"),
+                ]
+            )
+        _table([header, *body], paint)
+        share = report["rows_fully_handled"]
+        print(
+            f"\n Zils answers {paint(f'{share:.1%}', '1;32' if share else '1')} of inputs on its "
+            "own; the rest stay on your current model."
+        )
+        print(f" {paint('Agreement is with your logged answers, not proven accuracy.', '2')}\n")
     short = [q for q, v in report["questions"].items() if v["status"] == "too_few_rows"]
     if short:
         need = max(report["questions"][q]["inputs_needed"] for q in short)

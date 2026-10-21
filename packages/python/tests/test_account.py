@@ -22,6 +22,13 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 
 from zils_sdk import cli
 
+
+def account_module():
+    from zils_sdk import account
+
+    return account
+
+
 OWNER = "11111111-1111-4111-8111-111111111111"
 CLIENT = "22222222-2222-4222-8222-222222222222"
 CALLBACK = "http://127.0.0.1:43187/callback"
@@ -171,9 +178,11 @@ class AccountTests(unittest.TestCase):
                 return_value={"account_id": OWNER, "base_url": "https://training.zils.ai"},
             ) as login,
             redirect_stdout(io.StringIO()),
+            patch.object(cli, "offer_key") as offer,
         ):
             cli.run(cli.parser().parse_args(["login"]))
             login.assert_called_once()
+            offer.assert_called_once()
         with patch.object(account, "login") as login:
             with self.assertRaisesRegex(ValueError, "--api-key"):
                 cli.run(cli.parser().parse_args(["login", "--base-url", "https://example.com"]))
@@ -182,6 +191,68 @@ class AccountTests(unittest.TestCase):
         with redirect_stderr(output), self.assertRaises(SystemExit):
             cli.parser().parse_args(["login", "--api-key", "private-secret"])
         self.assertNotIn("private-secret", output.getvalue())
+
+    def offer(self, answer, *, tty=True):
+        stdin = io.StringIO(answer)
+        stdin.isatty = lambda: tty
+        errors = io.StringIO()
+        with (
+            patch.object(sys, "stdin", stdin),
+            redirect_stderr(errors),
+            patch.object(
+                account_module(),
+                "create_api_key",
+                return_value=("zils_sk_new", "https://z.test/decision"),
+            ) as create,
+        ):
+            cli.offer_key()
+        return create, errors.getvalue()
+
+    def test_login_offers_a_machine_key_and_saves_it_privately(self):
+        create, errors = self.offer("\n")
+        create.assert_called_once_with(f"zils CLI on {socket.gethostname()}"[:80])
+        self.assertEqual(json.loads(self.key.read_text())["api_key"], "zils_sk_new")
+        self.assertEqual(stat.S_IMODE(self.key.stat().st_mode), 0o600)
+        self.assertIn("Create an API key", errors)
+        self.assertNotIn("zils_sk_new", errors)
+        # A saved key is never replaced or re-offered.
+        create, errors = self.offer("\n")
+        create.assert_not_called()
+        self.assertEqual(errors, "")
+
+    def test_login_key_offer_respects_no_and_non_interactive_use(self):
+        create, errors = self.offer("n\n")
+        create.assert_not_called()
+        self.assertIn("No key created", errors)
+        create, errors = self.offer("", tty=False)
+        create.assert_not_called()
+        self.assertIn("zils login --api-key", errors)
+        self.assertFalse(self.key.exists())
+
+    def test_create_api_key_uses_the_signed_in_session(self):
+        account = account_module()
+        with (
+            patch.object(account, "credentials", return_value={"access_token": "session-token"}),
+            patch.object(
+                account, "read_json", return_value={"key": "zils_sk_1", "id": "k"}
+            ) as call,
+        ):
+            self.assertEqual(
+                account.create_api_key("zils CLI on host"),
+                ("zils_sk_1", "https://training.zils.ai/decision"),
+            )
+        call.assert_called_once_with(
+            "POST",
+            "https://training.zils.ai/decision/v1/keys",
+            token="session-token",
+            body={"name": "zils CLI on host"},
+        )
+        with (
+            patch.object(account, "credentials", return_value={"access_token": "session-token"}),
+            patch.object(account, "read_json", return_value={"error": "x"}),
+            self.assertRaisesRegex(ValueError, "did not return an API key"),
+        ):
+            account.create_api_key("zils CLI on host")
 
     def test_explicit_api_key_prompts_privately_and_browser_sessions_are_not_keys(self):
         from sdk_helpers import api

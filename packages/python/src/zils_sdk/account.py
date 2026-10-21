@@ -338,6 +338,20 @@ def credentials() -> dict:
         }
 
 
+def create_api_key(name: str) -> tuple[str, str]:
+    """Create an inference key for the signed-in account; returns (key, decision API URL)."""
+    from ._config import DEFAULT_BASE_URL, setting, validate_url
+
+    url = validate_url(setting(None, "ZILS_BASE_URL", DEFAULT_BASE_URL))
+    created = read_json(
+        "POST", url + "/v1/keys", token=credentials()["access_token"], body={"name": name}
+    )
+    key = created.get("key") if isinstance(created, dict) else None
+    if not isinstance(key, str) or not key.startswith("zils_sk_"):
+        raise ValueError("The service did not return an API key.")
+    return key, url
+
+
 def logout() -> None:
     with session_lock():
         session_path().unlink(missing_ok=True)
