@@ -317,12 +317,15 @@ def guide(path, include_tests=False):
     say(style.dim("zils fit scan --questions questions.json"), 7)
     say(style.dim("zils fit run --help"), 7)
     print()
+    say("Rather not do this by hand? Let your coding agent test it for you:", 5)
+    say(style.dim("zils fit agent"), 7)
+    print()
 
 
 def main_args(argv):
     """`zils fit` and `zils fit <folder>` run the guide; `scan` and `run` stay as subcommands."""
     if argv[:1] == ["fit"] and (
-        len(argv) == 1 or argv[1] not in ("scan", "run", "start", "-h", "--help")
+        len(argv) == 1 or argv[1] not in ("scan", "run", "start", "agent", "-h", "--help")
     ):
         return ["fit", "start", *argv[1:]]
     return argv

@@ -28,6 +28,10 @@ def add_parser(subparsers):
     )
     start.add_argument("path", nargs="?", default=".", type=Path)
     start.add_argument("--include-tests", action="store_true", help="Also read test files")
+    agent = commands.add_parser(
+        "agent", help="Install the zils-fit skill so your coding agent can do the evaluation"
+    )
+    agent.add_argument("path", nargs="?", default=".", type=Path, help="Project folder (.)")
     find = commands.add_parser("scan", help="List model calls that make typed decisions")
     find.add_argument("path", nargs="?", default=".", type=Path)
     find.add_argument("--questions", type=Path, help="Write draft Zils questions (JSON) here")
@@ -46,6 +50,11 @@ def add_parser(subparsers):
         "--point-estimate",
         action="store_true",
         help="Pick thresholds on the measured rate, not its 95%% lower bound",
+    )
+    run.add_argument(
+        "--answers",
+        type=Path,
+        help="Also save every answer (JSONL: input, logged answer, Zils's full answer)",
     )
     run.add_argument("--timeout", type=float, default=60)
     run.add_argument("--json", action="store_true", help="Write the report as JSON to stdout")
@@ -191,6 +200,12 @@ def _run(args):
         finally:
             if live:
                 print("\r\033[K", end="", file=sys.stderr)
+    answers = report.pop("answers")
+    if args.answers:
+        args.answers.write_text(
+            "".join(json.dumps(a, ensure_ascii=False) + "\n" for a in answers), encoding="utf-8"
+        )
+        print(f"Saved {len(answers)} answers to {args.answers}.", file=sys.stderr)
     report["model"] = args.model
     if args.json:
         print(json.dumps(report, indent=2))
@@ -246,7 +261,35 @@ def _run(args):
         raise ValueError("Every request failed.")
 
 
+def install_skill(project):
+    """Copy the packaged skill where Claude Code (.claude) and other agents (.agents) look."""
+    from importlib.resources import files
+
+    text = files("zils_sdk").joinpath("skills/zils-fit/SKILL.md").read_text(encoding="utf-8")
+    written = []
+    for folder in (".claude", ".agents"):
+        target = Path(project) / folder / "skills" / "zils-fit" / "SKILL.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        written.append(target)
+    return written
+
+
+def _agent(args):
+    if not args.path.is_dir():
+        raise ValueError(f"{args.path} is not a folder.")
+    for target in install_skill(args.path):
+        print(f"Installed {target}")
+    print()
+    print('Now ask your coding agent: "See where Zils fits in this repo."')
+    print("It reads your code, writes test cases from your app's own rules, asks Zils,")
+    print("and reports what Zils would handle. It asks before spending over 100 requests.")
+
+
 def run(args):
+    if args.fit_command == "agent":
+        _agent(args)
+        return
     if args.fit_command == "start":
         from .fit_guide import guide
 

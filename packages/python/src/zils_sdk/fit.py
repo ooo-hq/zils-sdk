@@ -299,7 +299,7 @@ def measure(
     `predict(state, questions)` returns Zils answers by question id. A row that fails
     is reported in `errors` and left out, never counted as a disagreement.
     """
-    results, errors = {}, []
+    results, errors, raw = {}, [], []
     for row in rows:
         asked = {q: questions[q] for q in row["labels"] if q in questions}
         if not asked:
@@ -307,6 +307,14 @@ def measure(
         try:
             answers = predict(row["state"], asked)
             results[row["id"]] = {q: _prediction(asked[q], answers[q]) for q in asked}
+            raw.append(
+                {
+                    "id": row["id"],
+                    "state": row["state"],
+                    "logged": row["labels"],
+                    "zils": {q: answers[q] for q in asked},
+                }
+            )
         except Exception as error:
             errors.append({"id": row["id"], "error": f"{type(error).__name__}: {error}"})
             if not results and len(errors) >= stop_after:
@@ -315,15 +323,29 @@ def measure(
                     f"The first {stop_after} requests failed, so no more were sent. "
                     f"Last error: {errors[-1]['error']}"
                 ) from None
-    report = {"rows": len(results), "errors": errors, "questions": {}}
+    report = {"rows": len(results), "errors": errors, "questions": {}, "answers": raw}
     handled_rows = {}
     for qid, question in questions.items():
-        points = []
+        points, disagreements = [], []
         for row in rows:
             if row["id"] in results and qid in results[row["id"]]:
                 predicted, confidence = results[row["id"]][qid]
-                correct = predicted == _label(question, row["labels"][qid])
+                expected = _label(question, row["labels"][qid])
+                correct = predicted == expected
                 points.append((row["id"], confidence, correct))
+                if not correct:
+                    state = (
+                        row["state"] if isinstance(row["state"], str) else json.dumps(row["state"])
+                    )
+                    disagreements.append(
+                        {
+                            "id": row["id"],
+                            "input": state[:300],
+                            "logged": expected,
+                            "zils": predicted,
+                            "zils_confidence": round(confidence, 3),
+                        }
+                    )
         tune = [p for p in points if not _check_half(p[0])]
         check = [p for p in points if _check_half(p[0])]
         threshold = None
@@ -360,6 +382,9 @@ def measure(
             "handled": len(kept) / len(check) if check else 0.0,
             "accuracy_handled": accuracy,
             "agreement_all": sum(ok for *_, ok in points) / len(points) if points else None,
+            "agreed": sum(ok for *_, ok in points),
+            # Most confident first: those are the ones worth reading.
+            "disagreements": sorted(disagreements, key=lambda d: -d["zils_confidence"])[:25],
             "status": status,
             "inputs_needed": 2 * needed,
         }

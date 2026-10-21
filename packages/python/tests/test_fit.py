@@ -191,6 +191,10 @@ class MeasureTests(unittest.TestCase):
         self.assertEqual(q["accuracy_handled"], 1.0)
         self.assertAlmostEqual(q["handled"], 0.75, delta=0.1)
         self.assertAlmostEqual(q["agreement_all"], 0.75)
+        self.assertEqual(q["agreed"], 150)
+        first = q["disagreements"][0]
+        self.assertEqual(set(first), {"id", "input", "logged", "zils", "zils_confidence"})
+        self.assertNotEqual(first["logged"], first["zils"])
         self.assertEqual(report["rows_fully_handled"], q["handled"])
 
     def test_failed_requests_are_reported_not_counted_and_no_threshold_escalates(self):
@@ -263,6 +267,17 @@ class FitCliTests(unittest.TestCase):
         self.assertEqual(report["questions"]["is_urgent"]["status"], "too_few_rows")
         self.assertEqual(report["questions"]["is_urgent"]["inputs_needed"], 146)
         self.assertIn("Sending 4 requests to zils-shared.", result.stderr)
+        self.assertNotIn("answers", report)
+        with api() as service:
+            self.env.update(ZILS_API_KEY="valid-key", ZILS_BASE_URL=service.url)
+            saved = self.cli(
+                "run", "--questions", "questions.json", "--answers", "a.jsonl", "--json"
+            )
+        self.assertEqual(saved.returncode, 0, saved.stderr)
+        lines = [json.loads(line) for line in (self.tmp / "a.jsonl").read_text().splitlines()]
+        self.assertEqual(len(lines), 4)
+        self.assertEqual(set(lines[0]), {"id", "state", "logged", "zils"})
+        self.assertEqual(lines[0]["zils"]["is_urgent"]["noul"], 0.5)
 
     def test_run_refuses_unfinished_drafts(self):
         (self.tmp / "questions.json").write_text(
@@ -357,3 +372,34 @@ class GuideTests(unittest.TestCase):
             self.assertIn(line, out)
         self.assertIn("Run zils fit in a terminal to ask Zils", out)
         self.assertNotIn("Pick a question", out + result.stderr)
+
+
+class AgentSkillTests(unittest.TestCase):
+    def test_agent_installs_the_skill_for_claude_and_other_agents(self):
+        from zils_sdk.fit_cli import install_skill
+        from zils_sdk.fit_guide import main_args
+
+        self.assertEqual(main_args(["fit", "agent"]), ["fit", "agent"])
+        with tempfile.TemporaryDirectory() as tmp:
+            written = install_skill(tmp)
+            self.assertEqual(
+                [str(p.relative_to(tmp)) for p in written],
+                [".claude/skills/zils-fit/SKILL.md", ".agents/skills/zils-fit/SKILL.md"],
+            )
+            text = written[0].read_text()
+            self.assertTrue(text.startswith("---\nname: zils-fit\ndescription: Use when"))
+            self.assertIn("zils fit run --questions", text)
+
+    def test_api_errors_include_what_the_service_said(self):
+        import httpx2
+        from typesafe_sdk import TypeSafeAPIError
+        from zils_sdk._input import error_message
+
+        error = TypeSafeAPIError(
+            422,
+            {"error": {"code": "runtime_rejected", "message": "Customer adapters require text."}},
+            httpx2.Headers(),
+        )
+        message = error_message(error)
+        self.assertIn("HTTP 422", message)
+        self.assertIn("The service said: Customer adapters require text.", message)

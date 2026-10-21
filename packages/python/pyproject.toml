@@ -27,4 +27,4 @@ Repository = "https://github.com/ooo-hq/zils-sdk"
 where = ["src"]
 
 [tool.setuptools.package-data]
-zils_sdk = ["py.typed"]
+zils_sdk = ["py.typed", "skills/*/SKILL.md"]
