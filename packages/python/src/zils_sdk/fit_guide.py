@@ -88,6 +88,48 @@ def title(item):
     )
 
 
+VERBS = {
+    "categorize": "Categorize",
+    "classify": "Classify",
+    "determine": "Decide",
+    "decide": "Decide",
+    "check": "Check",
+    "choose": "Choose",
+    "pick": "Pick",
+    "select": "Choose",
+    "route": "Route",
+    "detect": "Spot",
+    "label": "Label",
+    "rate": "Rate",
+    "score": "Rate",
+    "assign": "Assign",
+    "find": "Find",
+    "match": "Match",
+    "triage": "Triage",
+}
+NOISE = {"ai", "llm", "with", "get", "response", "run", "do", "handle", "fn", "the"}
+
+
+def words(name):
+    spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", name).replace("_", " ").replace("-", " ")
+    return [w for w in spaced.lower().split() if w]
+
+
+def describe(item):
+    """What the decision does in the product, in plain words, from the names the code uses."""
+    kind = item["question"]["type"]
+    action = [w for w in words(item["function"]) if w not in NOISE]
+    field = [w for w in words(item["name"]) if w not in NOISE and w != "name"]
+    if kind == "noul":
+        rest = action[1:] if action[:1] in (["is"], ["has"], ["should"]) else action or field
+        return f"Check whether it's {' '.join(rest)}" if rest else "Answer a yes-or-no question"
+    if action and action[0] in VERBS:
+        return f"{VERBS[action[0]]} {' '.join(action[1:])}".strip()
+    extra = [w for w in action if w not in field]
+    verb = "Rate" if kind == "score" else "Choose"
+    return f"{verb} {' '.join(field)}" + (f" ({' '.join(extra)})" if extra else "")
+
+
 def relative(location, base):
     path, line = location.rsplit(":", 1)
     try:
@@ -193,7 +235,7 @@ def try_loop(style, decisions):
                 say(f"Enter a number from 1 to {len(decisions)}.", 5)
                 continue
             item = decisions[int(choice) - 1]
-            say(style.bold(title(item)), 5)
+            say(f"{style.bold(describe(item))}  {style.dim(title(item))}", 5)
             try:
                 try_question(style, item, client)
             except EOFError:
@@ -238,21 +280,20 @@ def guide(path, include_tests=False):
 
     step(style, 2, "Find the questions")
     if decisions:
-        lead = "of them asks" if len(decisions) == 1 else "of them ask"
-        say(f"{len(decisions)} {lead} the model to pick an answer. Those are a fit for Zils.", 5)
+        many = len(decisions) != 1
+        say(f"Your app asks an AI to make {len(decisions)} quick decision{'s' if many else ''}.", 5)
+        say(f"Zils could make {'these' if many else 'it'} instead:", 5)
         print()
-        width = max(len(title(f)) for f in decisions)
         for n, item in enumerate(decisions, 1):
-            kind = ANSWER_KIND[item["question"]["type"]]
-            say(f"{style.bold(str(n).rjust(2))}  {title(item).ljust(width)}  {style.dim(kind)}", 5)
+            say(f"{style.bold(str(n).rjust(2))}  {describe(item)}", 5)
             where = Path(item["location"]).name  # file:line; zils fit scan shows full paths
             say(f"    {style.dim(item['function'] + '()  ' + where)}", 5)
     if switches:
         print()
-        say("Your app already has a setting for which model makes decisions:", 5)
+        say("Your app already sends some decisions to a decision model. Your", 5)
+        say("developer can point it at Zils by changing the address and model name.", 5)
         for item in switches:
             say(f"  {style.dim(relative(item['location'], base))}", 5)  # the one file to change
-        say("Point it at Zils to switch them all at once.", 5)
     if text:
         print()
         if len(text) == 1:
@@ -261,6 +302,8 @@ def guide(path, include_tests=False):
         else:
             say(f"The other {len(text)} write text, like replies and summaries.", 5)
             say("Zils doesn't write text, so those stay as they are.", 5)
+    print()
+    say(style.dim("Developers: zils fit scan lists the exact code for each."), 5)
     if not decisions:
         print()
         return

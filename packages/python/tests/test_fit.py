@@ -286,6 +286,28 @@ class GuideTests(unittest.TestCase):
         self.assertEqual(main_args(["fit", "scan", "."]), ["fit", "scan", "."])
         self.assertEqual(main_args(["login"]), ["login"])
 
+    def test_descriptions_say_what_the_decision_does(self):
+        from zils_sdk.fit_guide import describe
+
+        def item(function, name, kind):
+            return {"function": function, "name": name, "question": {"type": kind}}
+
+        self.assertEqual(
+            describe(item("categorizeSenderWithLlm", "category", "choice")), "Categorize sender"
+        )
+        self.assertEqual(
+            describe(item("getAiResponseSingleRule", "ruleName", "choice")), "Choose rule (single)"
+        )
+        self.assertEqual(
+            describe(item("determineThreadStatusWithLlm", "status", "choice")),
+            "Decide thread status",
+        )
+        self.assertEqual(
+            describe(item("aiIsColdEmail", "aiIsColdEmail", "noul")),
+            "Check whether it's cold email",
+        )
+        self.assertEqual(describe(item("frustration", "frustration", "score")), "Rate frustration")
+
     def test_titles_are_plain_questions(self):
         from zils_sdk.fit_guide import title
 
@@ -326,6 +348,12 @@ class GuideTests(unittest.TestCase):
             "4  Check it on your real traffic",
         ):
             self.assertIn(heading, out)
-        self.assertIn("Does this ticket need a response today?", out)
+        for line in (
+            "Check whether it's urgent",
+            "Rate frustration",
+            "Route ticket",
+            "Developers: zils fit scan lists the exact code for each.",
+        ):
+            self.assertIn(line, out)
         self.assertIn("Run zils fit in a terminal to ask Zils", out)
         self.assertNotIn("Pick a question", out + result.stderr)
