@@ -26,7 +26,7 @@ sessions and inference API keys are separate; browser login does not create a ke
 
 ## Where does Zils fit?
 
-`zils fit scan` finds the model calls in your code that make typed decisions,
+Run `zils fit` in your project for a guided tour. `zils fit scan` finds the model calls in your code that make typed decisions,
 `record` logs what they receive and answer, and `zils fit run` replays that log on
 Zils to show how much of the traffic it can take. See [zils fit](docs/fit.md).
 

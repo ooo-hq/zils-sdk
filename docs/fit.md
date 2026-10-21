@@ -9,6 +9,30 @@ anything:
    normal use; `zils fit run` replays the log on Zils and reports how much of that
    traffic Zils can take while agreeing with your current model.
 
+## Start here
+
+```sh
+zils fit
+```
+
+Run it in your project folder (or pass a folder). It reads your code, lists the
+questions your code asks an AI that Zils could answer, and lets you try one on an
+example you paste. Trying needs `zils login`. The steps below are the same flow
+for scripts and for measuring on real traffic.
+
+## Let your coding agent do it
+
+```sh
+zils fit agent
+```
+
+This installs a `zils-fit` skill into the project for Claude Code
+(`.claude/skills/`) and other agents (`.agents/skills/`). Then ask your agent:
+"See where Zils fits in this repo." It reads the code, writes test cases from the
+app's own definitions, runs them with `zils fit run`, and reports what Zils would
+handle and where it disagrees. Its test cases are not real traffic; measuring on
+real traffic is the steps below.
+
 ## 1. Scan
 
 ```sh

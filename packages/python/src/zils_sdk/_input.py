@@ -49,7 +49,13 @@ def error_message(error: Exception) -> str:
             422: "Check the state, questions, and model against the Zils API contract.",
             429: "Wait before trying again.",
         }.get(error.status, "Check the service before trying again.")
-        return f"Zils API returned HTTP {error.status}. {guidance} No automatic retry was made."
+        body = error.body if isinstance(error.body, dict) else {}
+        detail = body.get("error") if isinstance(body.get("error"), dict) else {}
+        said = detail.get("message")
+        said = f" The service said: {said}" if isinstance(said, str) and len(said) < 300 else ""
+        return (
+            f"Zils API returned HTTP {error.status}.{said} {guidance} No automatic retry was made."
+        )
     if isinstance(error, TypeSafeError):
         return "The Zils request could not complete. Check the connection and request; a retry may incur another charge."
     if isinstance(error, OSError):

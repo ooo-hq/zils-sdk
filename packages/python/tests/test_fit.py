@@ -191,6 +191,10 @@ class MeasureTests(unittest.TestCase):
         self.assertEqual(q["accuracy_handled"], 1.0)
         self.assertAlmostEqual(q["handled"], 0.75, delta=0.1)
         self.assertAlmostEqual(q["agreement_all"], 0.75)
+        self.assertEqual(q["agreed"], 150)
+        first = q["disagreements"][0]
+        self.assertEqual(set(first), {"id", "input", "logged", "zils", "zils_confidence"})
+        self.assertNotEqual(first["logged"], first["zils"])
         self.assertEqual(report["rows_fully_handled"], q["handled"])
 
     def test_failed_requests_are_reported_not_counted_and_no_threshold_escalates(self):
@@ -263,6 +267,17 @@ class FitCliTests(unittest.TestCase):
         self.assertEqual(report["questions"]["is_urgent"]["status"], "too_few_rows")
         self.assertEqual(report["questions"]["is_urgent"]["inputs_needed"], 146)
         self.assertIn("Sending 4 requests to zils-shared.", result.stderr)
+        self.assertNotIn("answers", report)
+        with api() as service:
+            self.env.update(ZILS_API_KEY="valid-key", ZILS_BASE_URL=service.url)
+            saved = self.cli(
+                "run", "--questions", "questions.json", "--answers", "a.jsonl", "--json"
+            )
+        self.assertEqual(saved.returncode, 0, saved.stderr)
+        lines = [json.loads(line) for line in (self.tmp / "a.jsonl").read_text().splitlines()]
+        self.assertEqual(len(lines), 4)
+        self.assertEqual(set(lines[0]), {"id", "state", "logged", "zils"})
+        self.assertEqual(lines[0]["zils"]["is_urgent"]["noul"], 0.5)
 
     def test_run_refuses_unfinished_drafts(self):
         (self.tmp / "questions.json").write_text(
@@ -275,3 +290,116 @@ class FitCliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GuideTests(unittest.TestCase):
+    def test_zils_fit_alone_or_with_a_folder_runs_the_guide(self):
+        from zils_sdk.fit_guide import main_args
+
+        self.assertEqual(main_args(["fit"]), ["fit", "start"])
+        self.assertEqual(main_args(["fit", "inbox-zero"]), ["fit", "start", "inbox-zero"])
+        self.assertEqual(main_args(["fit", "scan", "."]), ["fit", "scan", "."])
+        self.assertEqual(main_args(["login"]), ["login"])
+
+    def test_descriptions_say_what_the_decision_does(self):
+        from zils_sdk.fit_guide import describe
+
+        def item(function, name, kind):
+            return {"function": function, "name": name, "question": {"type": kind}}
+
+        self.assertEqual(
+            describe(item("categorizeSenderWithLlm", "category", "choice")), "Categorize sender"
+        )
+        self.assertEqual(
+            describe(item("getAiResponseSingleRule", "ruleName", "choice")), "Choose rule (single)"
+        )
+        self.assertEqual(
+            describe(item("determineThreadStatusWithLlm", "status", "choice")),
+            "Decide thread status",
+        )
+        self.assertEqual(
+            describe(item("aiIsColdEmail", "aiIsColdEmail", "noul")),
+            "Check whether it's cold email",
+        )
+        self.assertEqual(describe(item("frustration", "frustration", "score")), "Rate frustration")
+
+    def test_titles_are_plain_questions(self):
+        from zils_sdk.fit_guide import title
+
+        def item(name, kind, instructions=None):
+            return {"name": name, "question": {"type": kind, "instructions": instructions}}
+
+        self.assertEqual(
+            title(item("is_urgent", "noul", "Does this ticket need a reply today?")),
+            "Does this ticket need a reply today?",
+        )
+        # A template fragment that happens to contain "?" is not shown as the question.
+        self.assertEqual(title(item("category", "choice", ")}\n${x ? a")), "Which category?")
+        self.assertEqual(title(item("ruleName", "choice")), "Which rule?")
+        self.assertEqual(title(item("aiIsColdEmail", "noul")), "Is this cold email?")
+
+    def test_piped_guide_explains_without_colour_or_prompts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, text in APP.items():
+                (Path(tmp) / name).parent.mkdir(parents=True, exist_ok=True)
+                (Path(tmp) / name).write_text(text)
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("ZILS_", "TYPESAFE_"))}
+            result = subprocess.run(
+                [sys.executable, "-m", "zils_sdk.cli", "fit", tmp],
+                env=env,
+                text=True,
+                capture_output=True,
+                timeout=30,
+                stdin=subprocess.DEVNULL,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = result.stdout
+        self.assertNotIn("\033[", out)
+        self.assertIn("████", out)  # the logo
+        for heading in (
+            "1  Read your code",
+            "2  Find the questions",
+            "3  Try one",
+            "4  Check it on your real traffic",
+        ):
+            self.assertIn(heading, out)
+        for line in (
+            "Check whether it's urgent",
+            "Rate frustration",
+            "Route ticket",
+            "Developers: zils fit scan lists the exact code for each.",
+        ):
+            self.assertIn(line, out)
+        self.assertIn("Run zils fit in a terminal to ask Zils", out)
+        self.assertNotIn("Pick a question", out + result.stderr)
+
+
+class AgentSkillTests(unittest.TestCase):
+    def test_agent_installs_the_skill_for_claude_and_other_agents(self):
+        from zils_sdk.fit_cli import install_skill
+        from zils_sdk.fit_guide import main_args
+
+        self.assertEqual(main_args(["fit", "agent"]), ["fit", "agent"])
+        with tempfile.TemporaryDirectory() as tmp:
+            written = install_skill(tmp)
+            self.assertEqual(
+                [str(p.relative_to(tmp)) for p in written],
+                [".claude/skills/zils-fit/SKILL.md", ".agents/skills/zils-fit/SKILL.md"],
+            )
+            text = written[0].read_text()
+            self.assertTrue(text.startswith("---\nname: zils-fit\ndescription: Use when"))
+            self.assertIn("zils fit run --questions", text)
+
+    def test_api_errors_include_what_the_service_said(self):
+        import httpx2
+        from typesafe_sdk import TypeSafeAPIError
+        from zils_sdk._input import error_message
+
+        error = TypeSafeAPIError(
+            422,
+            {"error": {"code": "runtime_rejected", "message": "Customer adapters require text."}},
+            httpx2.Headers(),
+        )
+        message = error_message(error)
+        self.assertIn("HTTP 422", message)
+        self.assertIn("The service said: Customer adapters require text.", message)

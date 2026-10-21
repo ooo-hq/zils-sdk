@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- `zils fit agent` installs a `zils-fit` skill into the project (`.claude/skills/`
+  for Claude Code, `.agents/skills/` for other agents). Then ask your coding agent
+  "See where Zils fits in this repo": it finds the decisions, writes test cases
+  from the app's own rules, runs them through `zils fit run`, applies the app's
+  thresholds, and reports in plain words. It asks before spending over 100
+  requests and doesn't change code unless asked.
+- `zils fit run --answers FILE` saves every input with its expected answer and
+  Zils's full answer, and the JSON report lists `agreed` and each disagreement
+  (most confident first).
+- API errors in the CLI include the service's own message.
+- `zils fit` on its own (or `zils fit <folder>`) is now a guided first run. It
+  opens with the Zils wordmark, then steps through reading the code, listing the
+  questions your code asks an AI in plain words ("Is this cold email?", "Which
+  status?"), trying one live on an example you paste, and how to check Zils on
+  real traffic. It asks for the possible answers when the code builds them at run
+  time. Piped output stays plain and asks nothing. `zils fit scan` and
+  `zils fit run` are unchanged for scripts.
+
 ## 0.4.1 — 2026-10-21
 
 - `zils login` now offers to create an API key for this machine after browser

@@ -178,7 +178,9 @@ def run(args) -> None:
 
 
 def main() -> int:
-    args = parser().parse_args()
+    from .fit_guide import main_args
+
+    args = parser().parse_args(main_args(sys.argv[1:]))
     try:
         run(args)
         return 0
