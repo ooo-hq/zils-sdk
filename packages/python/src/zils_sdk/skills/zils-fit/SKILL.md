@@ -13,11 +13,11 @@ Zils answers typed questions (yes/no `noul`, pick-one `choice`, rating `score`) 
    - Prefer questions the app already defines for a decision model (files named like `decision-model/`, `systemone`, `decide(`): their wording, criteria and state shape are what production sends.
    - For LLM calls, read the prompt and output schema around each call site.
    - Note where options come from at run time (a database, user rules) and pick realistic values.
-2. **Write the questions** to `zils-fit/questions.json`: `{id: {type, instructions, criteria}}`. `instructions` must be a string. If the app sends an object, join its parts and tell the user (see Known gaps).
+2. **Write the questions** to `zils-fit/questions.json`: `{id: {type, instructions, criteria}}`. `instructions` must be a string. If the app sends an object, join its parts and tell the user (see Known gaps). If the app changes a question's options from call to call, write one question id per variant and merge them in the report.
 3. **Write test inputs** to `zils-fit/fit-log.jsonl`, one line per input and question: `{"question": id, "state": ..., "answer": expected}`. Use the app's real state shape. When the app asks several questions about one state in one call, write one line per question with the identical state; they go out as one request, as in production.
    - Take expected answers from the app's own definitions (prompts, rule text, docs), never your own taste.
    - Mix clear cases with borderline ones the definitions mention.
-   - Aim for 15–30 per decision. Say up front how many requests that is and get a yes before spending more than 100.
+   - Aim for 15–30 per decision. Say up front how many requests that is and get a yes before spending more than 100. Pass the agreed budget as `--max-rows`; the run refuses to send more.
 4. **Run** `zils fit run --questions zils-fit/questions.json --log zils-fit/fit-log.jsonl --answers zils-fit/answers.jsonl --json`. The report gives `agreed`, `agreement_all` and `disagreements` per question, scoring yes/no at 0.5. With under ~150 inputs, thresholds report `too_few_rows`; that is expected, so judge by agreement and confidence.
 5. **Apply the app's own rules** when the code has them (minimum confidence before acting, cut-offs for yes/no, fallback when unsure, how several answers combine). Compute them from `answers.jsonl`, which holds every input, its expected answers and Zils's full answers, and report what Zils would decide versus hand back. Group related question ids back into the decision they belong to.
 
