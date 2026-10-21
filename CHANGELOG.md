@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — 2026-10-21
 
 - Add `zils fit`. `zils fit scan` lists model calls that make typed decisions
   (OpenAI, Anthropic, Vercel AI SDK, LangChain; Jev-shaped calls as drop-ins),
@@ -17,7 +17,7 @@
   new job because the service no longer offers H2O or JevK5.
 - New submissions require d3-mini. `zils train download` still accepts older
   H2O and JevK5 results, and requires the pinned profile in d3-mini `model.json`
-  as it does for H2O. CLI training stays text-only; no version is bumped.
+  as it does for H2O. CLI training stays text-only.
 
 ## 0.3.0 — 2026-10-13
 
