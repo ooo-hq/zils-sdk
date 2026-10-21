@@ -59,6 +59,10 @@ apply; one HTTP request does not mean one model evaluation. See the
 [ranking contract](https://github.com/ooo-hq/zils-sdk/blob/main/docs/developer-tools.md#ranking)
 for numerical limits, failure behavior, and examples.
 
+**New in 0.4.0:** `record(question, fn)` logs a decision function's inputs and
+answers for `zils fit run`, which measures how much of that traffic Zils can take.
+See [zils fit](https://github.com/ooo-hq/zils-sdk/blob/main/docs/fit.md).
+
 **New in 0.3.0:** add `groupSize: 4` to the rank request to compare
 overlapping groups instead. Group sizes must be integers from 2 to 10 and are
 capped to the list length. This sends `n` Choice judgments, fits relative Luce
