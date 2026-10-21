@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.1 — 2026-10-21
 
 - `zils login` now offers to create an API key for this machine after browser
   sign-in ("Create an API key for this machine? [Y/n]"), so `zils decide` and
