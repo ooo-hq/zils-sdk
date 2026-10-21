@@ -275,3 +275,57 @@ class FitCliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GuideTests(unittest.TestCase):
+    def test_zils_fit_alone_or_with_a_folder_runs_the_guide(self):
+        from zils_sdk.fit_guide import main_args
+
+        self.assertEqual(main_args(["fit"]), ["fit", "start"])
+        self.assertEqual(main_args(["fit", "inbox-zero"]), ["fit", "start", "inbox-zero"])
+        self.assertEqual(main_args(["fit", "scan", "."]), ["fit", "scan", "."])
+        self.assertEqual(main_args(["login"]), ["login"])
+
+    def test_titles_are_plain_questions(self):
+        from zils_sdk.fit_guide import title
+
+        def item(name, kind, instructions=None):
+            return {"name": name, "question": {"type": kind, "instructions": instructions}}
+
+        self.assertEqual(
+            title(item("is_urgent", "noul", "Does this ticket need a reply today?")),
+            "Does this ticket need a reply today?",
+        )
+        # A template fragment that happens to contain "?" is not shown as the question.
+        self.assertEqual(title(item("category", "choice", ")}\n${x ? a")), "Which category?")
+        self.assertEqual(title(item("ruleName", "choice")), "Which rule?")
+        self.assertEqual(title(item("aiIsColdEmail", "noul")), "Is this cold email?")
+
+    def test_piped_guide_explains_without_colour_or_prompts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, text in APP.items():
+                (Path(tmp) / name).parent.mkdir(parents=True, exist_ok=True)
+                (Path(tmp) / name).write_text(text)
+            env = {k: v for k, v in os.environ.items() if not k.startswith(("ZILS_", "TYPESAFE_"))}
+            result = subprocess.run(
+                [sys.executable, "-m", "zils_sdk.cli", "fit", tmp],
+                env=env,
+                text=True,
+                capture_output=True,
+                timeout=30,
+                stdin=subprocess.DEVNULL,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = result.stdout
+        self.assertNotIn("\033[", out)
+        self.assertIn("████", out)  # the logo
+        for heading in (
+            "1  Read your code",
+            "2  Find the questions",
+            "3  Try one",
+            "4  Check it on your real traffic",
+        ):
+            self.assertIn(heading, out)
+        self.assertIn("Does this ticket need a response today?", out)
+        self.assertIn("Run zils fit in a terminal to ask Zils", out)
+        self.assertNotIn("Pick a question", out + result.stderr)

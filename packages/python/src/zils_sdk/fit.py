@@ -165,23 +165,25 @@ def _classify(text, name, returns):
     return name, None
 
 
-def scan(root, include_tests=False):
-    """Model call sites as dicts: location, name, kind ("decision", "drop-in" or "text"), question."""
+def source_files(root, include_tests=False):
+    """The source files `scan` reads."""
     root = Path(root)
-    files = (
-        [root]
-        if root.is_file()
-        else sorted(
-            p
-            for p in root.rglob("*")
-            if p.suffix in EXTS
-            and p.is_file()
-            and not SKIP_DIRS & set(p.relative_to(root).parts)
-            and (include_tests or not _is_test(p.relative_to(root)))
-        )
+    if root.is_file():
+        return [root]
+    return sorted(
+        p
+        for p in root.rglob("*")
+        if p.suffix in EXTS
+        and p.is_file()
+        and not SKIP_DIRS & set(p.relative_to(root).parts)
+        and (include_tests or not _is_test(p.relative_to(root)))
     )
+
+
+def scan(root, include_tests=False, files=None):
+    """Model call sites as dicts: location, name, kind ("decision", "drop-in" or "text"), question."""
     found = []
-    for path in files:
+    for path in files if files is not None else source_files(root, include_tests):
         # Comments are blanked, keeping line numbers: a model named in a comment is not a call.
         lines = [
             "" if COMMENT.match(line) else line

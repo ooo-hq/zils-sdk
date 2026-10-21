@@ -9,6 +9,17 @@ anything:
    normal use; `zils fit run` replays the log on Zils and reports how much of that
    traffic Zils can take while agreeing with your current model.
 
+## Start here
+
+```sh
+zils fit
+```
+
+Run it in your project folder (or pass a folder). It reads your code, lists the
+questions your code asks an AI that Zils could answer, and lets you try one on an
+example you paste. Trying needs `zils login`. The steps below are the same flow
+for scripts and for measuring on real traffic.
+
 ## 1. Scan
 
 ```sh

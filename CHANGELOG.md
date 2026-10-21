@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- `zils fit` on its own (or `zils fit <folder>`) is now a guided first run. It
+  opens with the Zils wordmark, then steps through reading the code, listing the
+  questions your code asks an AI in plain words ("Is this cold email?", "Which
+  status?"), trying one live on an example you paste, and how to check Zils on
+  real traffic. It asks for the possible answers when the code builds them at run
+  time. Piped output stays plain and asks nothing. `zils fit scan` and
+  `zils fit run` are unchanged for scripts.
+
 ## 0.4.1 — 2026-10-21
 
 - `zils login` now offers to create an API key for this machine after browser

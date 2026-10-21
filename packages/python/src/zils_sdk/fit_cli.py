@@ -23,6 +23,11 @@ def add_parser(subparsers):
         "fit", help="Find where Zils fits in your code and measure it on your logged calls"
     )
     commands = fit.add_subparsers(dest="fit_command", required=True)
+    start = commands.add_parser(
+        "start", help="Guided tour (the default): find the questions Zils can answer, try one"
+    )
+    start.add_argument("path", nargs="?", default=".", type=Path)
+    start.add_argument("--include-tests", action="store_true", help="Also read test files")
     find = commands.add_parser("scan", help="List model calls that make typed decisions")
     find.add_argument("path", nargs="?", default=".", type=Path)
     find.add_argument("--questions", type=Path, help="Write draft Zils questions (JSON) here")
@@ -242,4 +247,9 @@ def _run(args):
 
 
 def run(args):
-    _scan(args) if args.fit_command == "scan" else _run(args)
+    if args.fit_command == "start":
+        from .fit_guide import guide
+
+        guide(args.path, args.include_tests)
+    else:
+        _scan(args) if args.fit_command == "scan" else _run(args)
