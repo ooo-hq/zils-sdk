@@ -278,12 +278,12 @@ def install_skill(project):
 def _agent(args):
     if not args.path.is_dir():
         raise ValueError(f"{args.path} is not a folder.")
-    for target in install_skill(args.path):
+    written = install_skill(args.path)
+    for target in written:
         print(f"Installed {target}")
     print()
-    print('Now ask your coding agent: "See where Zils fits in this repo."')
-    print("It reads your code, writes test cases from your app's own rules, asks Zils,")
-    print("and reports what Zils would handle. It asks before spending over 100 requests.")
+    print(f"Coding agent: read {written[0]} now and follow it to answer the user.")
+    print('Person: ask your coding agent "See where Zils fits in this repo."')
 
 
 def run(args):

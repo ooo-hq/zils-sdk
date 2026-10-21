@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- One sentence to paste into a coding agent: "Use `npx -y @zils/cli fit agent` to
+  install the Zils skill, then see where Zils fits in this repo." The skill checks
+  sign-in first and runs `zils login --yes`, so the person only approves the
+  browser sign-in. `zils login --yes` creates the machine's API key without a
+  terminal prompt. `zils fit agent` tells the agent to read the skill and continue.
+
 - `zils fit agent` installs a `zils-fit` skill into the project (`.claude/skills/`
   for Claude Code, `.agents/skills/` for other agents). Then ask your coding agent
   "See where Zils fits in this repo": it finds the decisions, writes test cases

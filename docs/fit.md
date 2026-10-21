@@ -22,6 +22,12 @@ for scripts and for measuring on real traffic.
 
 ## Let your coding agent do it
 
+Paste this into your coding agent (Claude Code, Cursor, Codex) in your project:
+
+> Use `npx -y @zils/cli fit agent` to install the Zils skill, then see where Zils fits in this repo.
+
+Or install the skill yourself:
+
 ```sh
 zils fit agent
 ```

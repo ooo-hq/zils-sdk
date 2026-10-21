@@ -54,6 +54,11 @@ def parser() -> argparse.ArgumentParser:
         help="Prompt privately for an inference key; add - to read from stdin",
     )
     login.add_argument("--base-url", help="Zils API base URL (HTTPS, or HTTP loopback)")
+    login.add_argument(
+        "--yes",
+        action="store_true",
+        help="After browser sign-in, create an API key for this machine without asking",
+    )
     commands.add_parser(
         "logout", help="Remove saved account and key credentials; does not revoke remote sessions"
     )
@@ -74,16 +79,17 @@ def parser() -> argparse.ArgumentParser:
     return root
 
 
-def offer_key() -> None:
+def offer_key(assume_yes: bool = False) -> None:
     """After browser sign-in, offer an inference key so decide and fit work without a second step."""
     if os.environ.get("ZILS_API_KEY", "").strip() or config_path().exists():
         return
-    if not sys.stdin.isatty():
-        print("To call models from this machine, run zils login --api-key.", file=sys.stderr)
+    if not assume_yes and not sys.stdin.isatty():
+        print("To call models from this machine, run zils login --yes.", file=sys.stderr)
         return
-    sys.stderr.write("Create an API key for this machine, for zils decide and zils fit? [Y/n] ")
-    sys.stderr.flush()
-    if sys.stdin.readline().strip().lower() not in ("", "y", "yes"):
+    if not assume_yes:
+        sys.stderr.write("Create an API key for this machine, for zils decide and zils fit? [Y/n] ")
+        sys.stderr.flush()
+    if not assume_yes and sys.stdin.readline().strip().lower() not in ("", "y", "yes"):
         print("No key created. Run zils login --api-key when you need one.", file=sys.stderr)
         return
     name = f"zils CLI on {socket.gethostname()}"[:80]
@@ -143,7 +149,7 @@ def run(args) -> None:
                     "--base-url requires --api-key. Use ZILS_TRAINING_URL for account sign-in."
                 )
             print(json.dumps(account.login()))
-            offer_key()
+            offer_key(args.yes)
             return
         if args.api_key == "-":
             key = sys.stdin.readline(8192).strip()
