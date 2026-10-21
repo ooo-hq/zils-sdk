@@ -192,7 +192,7 @@ class AccountTests(unittest.TestCase):
             cli.parser().parse_args(["login", "--api-key", "private-secret"])
         self.assertNotIn("private-secret", output.getvalue())
 
-    def offer(self, answer, *, tty=True):
+    def offer(self, answer, *, tty=True, assume_yes=False):
         stdin = io.StringIO(answer)
         stdin.isatty = lambda: tty
         errors = io.StringIO()
@@ -205,7 +205,7 @@ class AccountTests(unittest.TestCase):
                 return_value=("zils_sk_new", "https://z.test/decision"),
             ) as create,
         ):
-            cli.offer_key()
+            cli.offer_key(assume_yes)
         return create, errors.getvalue()
 
     def test_login_offers_a_machine_key_and_saves_it_privately(self):
@@ -220,13 +220,20 @@ class AccountTests(unittest.TestCase):
         create.assert_not_called()
         self.assertEqual(errors, "")
 
+    def test_login_yes_creates_the_key_without_a_terminal(self):
+        create, errors = self.offer("", tty=False, assume_yes=True)
+        create.assert_called_once()
+        self.assertEqual(json.loads(self.key.read_text())["api_key"], "zils_sk_new")
+        self.assertNotIn("Create an API key", errors)
+        self.assertTrue(cli.parser().parse_args(["login", "--yes"]).yes)
+
     def test_login_key_offer_respects_no_and_non_interactive_use(self):
         create, errors = self.offer("n\n")
         create.assert_not_called()
         self.assertIn("No key created", errors)
         create, errors = self.offer("", tty=False)
         create.assert_not_called()
-        self.assertIn("zils login --api-key", errors)
+        self.assertIn("zils login --yes", errors)
         self.assertFalse(self.key.exists())
 
     def test_create_api_key_uses_the_signed_in_session(self):
