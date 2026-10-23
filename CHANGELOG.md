@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3 — 2026-10-23
+
+- Training help and current documentation use the z3 public model-line names.
+- Existing d3 pool keys, model profiles and API behavior remain unchanged.
+- The TypeScript SDK is versioned alongside the CLI; its runtime is unchanged.
+
 ## 0.4.2 — 2026-10-21
 
 - One sentence to paste into a coding agent: "Use `npx -y @zils/cli fit agent` to
