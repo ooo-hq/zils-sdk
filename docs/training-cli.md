@@ -2,12 +2,17 @@
 
 Install `@zils/cli` from npm using the
 [developer-tools setup](developer-tools.md#install-from-npm). The CLI
-defaults to the d3-mini stable text profile. Optional `--pool d3-lite`,
+defaults to the z3-mini founding baseline through its immutable d3-mini profile. Optional `--pool d3-lite`,
 `--base-channel latest`, or `--model EXACT_PROFILE_ID` selects a qualified profile
-advertised by the service. Pool choices are d3-lite, d3-nano, d3-mini, d3-flash and d3;
+advertised by the service. Service pool keys remain d3-lite, d3-nano, d3-mini, d3-flash and d3;
 catalog membership alone does not mean a pool is available. H2O and JevK5 are retired for new
 jobs; the CLI only downloads their older accepted results. Training execution remains in the hosted platform;
 no GPU or model installation is needed on your laptop.
+
+The public model line is **z3**. Existing API IDs, pool keys, downloaded artifacts
+and pinned metadata keep their original `d3` identities. Pass the exact values
+returned by discovery, including in `--pool` and `--model`; public z3 names are
+not new API aliases. The founding mini baseline uses unchanged upstream weights.
 
 ## Sign in
 
@@ -70,7 +75,7 @@ JSON results remain on stdout.
 Each UTF-8 JSONL case requires `id`, `group_id`, `family`, `state`, `question`, and
 `label`. Labels are strings: `"false"`/`"true"` for `noul`, a criterion key for
 `choice`, or a zero-based index string for `score`. Questions support at most
-255 outcomes. The server enforces the pinned model limits (d3-mini allows 4,096 input tokens); the CLI never truncates data.
+255 outcomes. The server enforces the pinned model limits (the z3-mini founding baseline allows 4,096 input tokens); the CLI never truncates data.
 
 IDs must be globally unique. Related source groups and identical state/question
 pairs must stay in one split. Calibration and test families must match and occur
@@ -130,7 +135,7 @@ zils train cancel JOB_ID
 zils train cancel JOB_ID --yes --json
 ```
 
-Downloads require an accepted supported d3 result, or an older accepted H2O or JevK5 result. The CLI verifies provider/job/file
+Downloads require an accepted supported z3 result, or an older accepted H2O or JevK5 result. The CLI verifies provider/job/file
 paths, release identity, model metadata and the backend-compatible checkpoint
 SHA-256 before publishing four files to a **new** directory. Existing paths are
 never overwritten. The filesystem must support hard links within the destination's

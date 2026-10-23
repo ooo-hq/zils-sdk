@@ -71,6 +71,6 @@ incorrect comparisons, and fitting strengths does not correct that evidence.
 
 [Complete guide](https://github.com/ooo-hq/zils-sdk/blob/main/docs/developer-tools.md).
 
-For browser account sign-in use `zils login`. For d3-mini text training (H2O and JevK5 only for older results), see the
+For browser account sign-in use `zils login`. For z3-mini text training (H2O and JevK5 only for older results), see the
 [training CLI guide](https://github.com/ooo-hq/zils-sdk/blob/main/docs/training-cli.md).
 Browser login does not create an inference key.
