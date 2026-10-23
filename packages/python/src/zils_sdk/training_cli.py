@@ -25,7 +25,7 @@ def positive_seconds(value):
 
 def add_parser(subparsers):
     train = subparsers.add_parser(
-        "train", help="Submit and manage d3 pool text training with your Zils account"
+        "train", help="Submit and manage z3 text training with your Zils account"
     )
     commands = train.add_subparsers(dest="training_command", required=True)
     for name, help_text in (
@@ -55,7 +55,9 @@ def add_parser(subparsers):
                 )
         if name == "submit":
             command.add_argument("--name", required=True)
-            command.add_argument("--pool", help="General model pool (default d3-mini)")
+            command.add_argument(
+                "--pool", help="Service pool key for the z3 line (default d3-mini)"
+            )
             command.add_argument("--base-channel", choices=("stable", "latest"))
             command.add_argument("--model", help="Exact profile ID advertised by the service")
             command.add_argument("--min-accuracy", type=float, required=True)
