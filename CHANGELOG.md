@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.4 — 2026-11-01
 
 - `zils merge FIRST SECOND --out DIR` merges two models of the same family
   (folders or Hugging Face repo ids) on your machine, by linear average or
@@ -10,6 +10,7 @@
 - `zils merge` ignores the second model's extra output heads (`mtp.*`,
   `lm_head`) and vision tower when the first model has none, instead of
   refusing, so d3 models merge with Qwen bases and their fine-tunes.
+- The TypeScript SDK is versioned alongside the CLI; its runtime is unchanged.
 
 ## 0.4.3 — 2026-10-23
 
