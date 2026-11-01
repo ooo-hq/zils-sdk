@@ -1,5 +1,6 @@
 """`zils merge`: merge two models of the same family on this machine."""
 
+import sys
 from pathlib import Path
 
 
@@ -22,8 +23,11 @@ def run(args):
     try:
         from . import merge
     except ImportError:
+        version = "%d.%d" % sys.version_info[:2]
         raise ValueError(
-            "zils merge needs numpy and huggingface_hub: pip install 'zils-sdk[merge]'"
+            f"zils merge needs numpy and huggingface_hub, which aren't installed for Python {version}."
+            " From source: pip install 'zils-sdk[merge]'. With the npm CLI, set ZILS_PYTHON to a"
+            " Python 3.11–3.14 executable."
         ) from None
     first, second = merge.resolve(args.first), merge.resolve(args.second)
     result = merge.merge(

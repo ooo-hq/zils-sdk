@@ -45,6 +45,44 @@ def installation_lock(path):
                 fcntl.flock(lock, fcntl.LOCK_UN)
 
 
+def pip_install(python, target, **options):
+    return subprocess.run(
+        [
+            str(python),
+            "-I",
+            "-m",
+            "pip",
+            "--isolated",
+            "--disable-pip-version-check",
+            "install",
+            "--no-input",
+            "--only-binary=:all:",
+            "--index-url",
+            "https://pypi.org/simple",
+            target,
+        ],
+        **options,
+    )
+
+
+def install(python, wheel):
+    """The CLI must install; `zils merge`'s numpy + huggingface_hub are best effort, since a new
+    Python can lack binary builds of them (pyyaml had none for 3.15) and must not block other commands."""
+    pip_install(python, str(wheel), stdout=sys.stderr, check=True)
+    if pip_install(python, f"{wheel}[merge]", capture_output=True, text=True).returncode:
+        version = "%d.%d" % sys.version_info[:2]
+        print(
+            f"zils merge is unavailable on Python {version}: its dependencies have no build for it yet."
+            " Every other command works.",
+            file=sys.stderr,
+        )
+    subprocess.run(
+        [str(python), "-I", "-c", "import zils_sdk; from zils_sdk.cli import main"],
+        stdout=sys.stderr,
+        check=True,
+    )
+
+
 def runtime():
     package = Path(__file__).resolve().parent
     version = json.loads((package / "package.json").read_text())["version"]
@@ -77,29 +115,7 @@ def runtime():
                 stdout=sys.stderr,
                 check=True,
             )
-            subprocess.run(
-                [
-                    str(python),
-                    "-I",
-                    "-m",
-                    "pip",
-                    "--isolated",
-                    "--disable-pip-version-check",
-                    "install",
-                    "--no-input",
-                    "--only-binary=:all:",
-                    "--index-url",
-                    "https://pypi.org/simple",
-                    f"{wheel}[merge]",  # numpy + huggingface_hub for zils merge
-                ],
-                stdout=sys.stderr,
-                check=True,
-            )
-            subprocess.run(
-                [str(python), "-I", "-c", "import zils_sdk; from zils_sdk.cli import main"],
-                stdout=sys.stderr,
-                check=True,
-            )
+            install(python, wheel)
             ready.write_text(digest + "\n")
     return python
 
