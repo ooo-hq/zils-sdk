@@ -253,12 +253,8 @@ class MergeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "method"):
             merge.merge(a, b, self.root / "out", method="ties")
 
-    def test_a_hugging_face_id_is_downloaded_with_weights_and_config_only(self):
+    def test_a_folder_resolves_to_itself_and_other_text_is_refused(self):
         a = model(self.root / "a", {"w": ("BF16", [1], bf16([1.0]))})
-        with patch("huggingface_hub.snapshot_download", return_value=str(a)) as download:
-            self.assertEqual(merge.resolve("eljiwo/jiwo-0.8b"), a)
-        self.assertEqual(download.call_args.args, ("eljiwo/jiwo-0.8b",))
-        self.assertIn("*.gguf", download.call_args.kwargs["ignore_patterns"])
         self.assertEqual(merge.resolve(str(a)), a)
         with self.assertRaisesRegex(ValueError, "folder or a Hugging Face"):
             merge.resolve("not a repo id")

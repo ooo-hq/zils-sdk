@@ -66,8 +66,8 @@ def pip_install(python, target, **options):
 
 
 def install(python, wheel):
-    """The CLI must install; `zils merge`'s numpy + huggingface_hub are best effort, since a new
-    Python can lack binary builds of them (pyyaml had none for 3.15) and must not block other commands."""
+    """The CLI must install; `zils merge`'s numpy is best effort, since a new Python can lack a
+    binary build of it, and that must not block other commands."""
     pip_install(python, str(wheel), stdout=sys.stderr, check=True)
     if pip_install(python, f"{wheel}[merge]", capture_output=True, text=True).returncode:
         version = "%d.%d" % sys.version_info[:2]

@@ -25,9 +25,9 @@ def run(args):
     except ImportError:
         version = "%d.%d" % sys.version_info[:2]
         raise ValueError(
-            f"zils merge needs numpy and huggingface_hub, which aren't installed for Python {version}."
-            " From source: pip install 'zils-sdk[merge]'. With the npm CLI, set ZILS_PYTHON to a"
-            " Python 3.11–3.14 executable."
+            f"zils merge needs numpy, which isn't installed for Python {version}."
+            " From source: pip install 'zils-sdk[merge]'. With the npm CLI, set ZILS_PYTHON to"
+            " another Python 3.11+ executable."
         ) from None
     first, second = merge.resolve(args.first), merge.resolve(args.second)
     result = merge.merge(
