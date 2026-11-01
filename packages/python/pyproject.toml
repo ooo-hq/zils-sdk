@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zils-sdk"
-version = "0.4.5"
+version = "0.4.6"
 description = "Python SDK and MCP for Zils decisions, plus account and training CLI"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -14,7 +14,7 @@ dependencies = ["typesafe-sdk==0.7.2", "httpx==0.28.1"]
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.28,<2"]
-merge = ["numpy>=1.26", "huggingface_hub>=0.30"]
+merge = ["numpy>=1.26"]
 
 [project.scripts]
 zils = "zils_sdk.cli:main"

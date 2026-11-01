@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.6 — 2026-11-01
+
+- `zils merge` works on Python 3.15. It downloads Hugging Face models with its
+  own small downloader (httpx, already a dependency) instead of
+  huggingface_hub, so its only extra dependency is numpy. Downloads resume
+  where they stopped, weight files are checked against the SHA-256 the Hub
+  lists, and `HF_TOKEN` (for gated or private models) is sent to Hugging Face
+  only. Models are cached under `zils/models` in your cache folder.
+- The TypeScript SDK is versioned alongside the CLI; its runtime is unchanged.
+
 ## 0.4.5 — 2026-11-01
 
 - Fix: on Python 3.15 the npm CLI's first-run setup failed and no command

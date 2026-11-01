@@ -41,10 +41,9 @@ def resolve(source):
         return path
     if not REPO_ID.fullmatch(source):
         raise ValueError(f"{source} is not a model folder or a Hugging Face repo id.")
-    from huggingface_hub import snapshot_download
+    from . import _hf
 
-    ignore = ["*.gguf", "*.bin", "*.pt", "*.pth", "*.onnx", "*.h5", "*.msgpack", "*.ckpt"]
-    return Path(snapshot_download(source, ignore_patterns=ignore))
+    return _hf.download(source)
 
 
 def canonical(name):

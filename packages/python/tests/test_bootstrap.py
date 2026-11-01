@@ -73,7 +73,8 @@ class MergeUnavailableTests(unittest.TestCase):
         message = str(caught.exception)
         self.assertIn("pip install 'zils-sdk[merge]'", message)
         self.assertIn("ZILS_PYTHON", message)
-        self.assertIn("3.11–3.14", message)
+        self.assertIn("needs numpy,", message)
+        self.assertNotIn("huggingface_hub", message)
 
 
 if __name__ == "__main__":
