@@ -208,7 +208,7 @@ class MergeTests(unittest.TestCase):
         with patch.object(merge, "encode", side_effect=AssertionError("wrote output")):
             with self.assertRaisesRegex(ValueError, "the same model"):
                 merge.merge(a, self.root / "a" / ".." / "a", self.root / "out")
-        self.assertEqual([p.name for p in self.root.iterdir()], ["a", "b"])
+        self.assertEqual(sorted(p.name for p in self.root.iterdir()), ["a", "b"])
 
     def test_duplicate_names_after_alignment_are_refused(self):
         a = model(
