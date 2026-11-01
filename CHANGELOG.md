@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.5 — 2026-11-01
+
+- Fix: on Python 3.15 the npm CLI's first-run setup failed and no command
+  worked, because a `zils merge` dependency (pyyaml, via huggingface_hub) has
+  no 3.15 build yet. Setup now installs the CLI first and `zils merge`'s
+  dependencies separately; if they can't install, every other command still
+  works and `zils merge` says how to use Python 3.11–3.14.
+- The TypeScript SDK is versioned alongside the CLI; its runtime is unchanged.
+
 ## 0.4.4 — 2026-11-01
 
 - `zils merge FIRST SECOND --out DIR` merges two models of the same family
