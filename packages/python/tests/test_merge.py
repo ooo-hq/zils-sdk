@@ -366,5 +366,85 @@ class MergeCliTests(unittest.TestCase):
                 self.assertIn(message, bad.stderr)
 
 
+class MergePoolTests(unittest.TestCase):
+    """`zils merge --pool`: the miner's own body check runs on the new folder (zils-miner)."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+        self.a = model(self.root / "a", {"w": ("BF16", [2], bf16([1.0, 2.0]))})
+        self.b = model(self.root / "b", {"w": ("BF16", [2], bf16([3.0, 4.0]))})
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        self.record = self.root / "args.json"
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith("ZILS_")}
+        self.env.update(
+            HOME=str(self.root / "home"), PATH=f"{self.bin}{os.pathsep}/usr/bin{os.pathsep}/bin"
+        )
+
+    def miner(self, *, check=True, code=0, says="body abc passes the local checks"):
+        help_text = (
+            "usage: zils-miner commit-body [--check]" if check else "usage: zils-miner commit-body"
+        )
+        script = self.bin / "zils-miner"
+        script.write_text(
+            f"#!{sys.executable}\n"
+            "import json, sys\n"
+            "if '--help' in sys.argv:\n"
+            f"    print({help_text!r}); sys.exit(0)\n"
+            f"open({str(self.record)!r}, 'w').write(json.dumps(sys.argv[1:]))\n"
+            f"print({says!r}, file=sys.stderr if {code} else sys.stdout)\n"
+            f"sys.exit({code})\n"
+        )
+        script.chmod(0o755)
+
+    def merge(self, *extra):
+        out = self.root / "out"
+        result = subprocess.run(
+            [sys.executable, "-m", "zils_sdk.cli", "merge", str(self.a), str(self.b), "--out", str(out), *extra],
+            capture_output=True, text=True, env=self.env, timeout=60,
+        )  # fmt: skip
+        return out, result
+
+    def test_pool_runs_the_miners_body_check_on_the_output(self):
+        self.miner()
+        out, result = self.merge("--pool", "d3-lite")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Merged 1 tensors", result.stdout)
+        self.assertIn("passes the local checks", result.stdout)
+        self.assertEqual(
+            json.loads(self.record.read_text()),
+            ["commit-body", "--pool", "d3-lite", "--path", str(out), "--check"],
+        )
+
+    def test_a_failed_check_keeps_the_merge_and_says_it_is_not_a_body_yet(self):
+        self.miner(code=1, says="zils-miner: body is a text-only checkpoint (model.layers.0.w)")
+        out, result = self.merge("--pool", "d3-lite")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("text-only checkpoint", result.stderr)
+        self.assertIn(f"{out} holds the merge, but it is not a d3-lite soup body", result.stderr)
+        self.assertTrue((out / "model.safetensors").is_file())
+
+    def test_an_old_miner_without_the_check_is_told_to_update(self):
+        self.miner(check=False)
+        _, result = self.merge("--pool", "d3-lite")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("zils-miner update", result.stderr)
+        self.assertFalse(self.record.exists())
+
+    def test_without_the_miner_it_says_how_to_check_later(self):
+        out, result = self.merge("--pool", "d3-lite")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("curl -fsSL https://zils.ai/install.sh | sh", result.stderr)
+        self.assertIn(f"zils commit-body --pool d3-lite --path {out} --check", result.stderr)
+
+    def test_without_pool_the_miner_is_not_run(self):
+        self.miner()
+        _, result = self.merge()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.record.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

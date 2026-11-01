@@ -208,12 +208,18 @@ def run(args) -> None:
         )
 
 
-def miner(argv) -> int:
-    """Run `zils-miner` with the same arguments: from PATH, else the installer's ~/.local/bin."""
+def miner_path():
+    """The `zils-miner` command: from PATH, else the installer's ~/.local/bin; None if absent."""
     found = shutil.which("zils-miner")
     local = Path.home() / ".local/bin/zils-miner"
     if found is None and os.access(local, os.X_OK):
         found = str(local)
+    return found
+
+
+def miner(argv) -> int:
+    """Run `zils-miner` with the same arguments."""
+    found = miner_path()
     if found is None:
         print(
             f"zils {argv[0]} is a miner command, run by zils-miner, which is not installed here.\n"
