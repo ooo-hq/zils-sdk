@@ -125,6 +125,26 @@ class MergeTests(unittest.TestCase):
         np.testing.assert_array_equal(tensors["model.visual.blocks.0.w"][2], [8.0, 8.0])
         self.assertEqual((summary["merged"], summary["kept"]), (1, 1))
 
+    def test_second_model_extra_heads_and_vision_are_ignored(self):
+        # A Qwen base carries mtp.* and lm_head; a d3 chassis has neither; a text-only first model has no vision.
+        a = model(self.root / "a", {"layers.0.w": ("BF16", [1], bf16([1.0]))})
+        b = model(
+            self.root / "b",
+            {
+                "model.language_model.layers.0.w": ("BF16", [1], bf16([3.0])),
+                "mtp.layers.0.w": ("BF16", [1], bf16([9.0])),
+                "lm_head.weight": ("BF16", [1], bf16([9.0])),
+                "model.visual.blocks.0.w": ("BF16", [1], bf16([9.0])),
+            },
+        )
+        summary = merge.merge(a, b, self.root / "out")
+        tensors = read_safetensors(self.root / "out" / "model.safetensors")
+        self.assertEqual(set(tensors), {"layers.0.w"})
+        np.testing.assert_array_equal(tensors["layers.0.w"][2], [2.0])
+        self.assertEqual((summary["merged"], summary["kept"], summary["ignored"]), (1, 0, 3))
+        recipe = json.loads((self.root / "out" / "merge.json").read_text())
+        self.assertEqual(recipe["ignored"], 3)
+
     def test_float32_inputs_are_written_in_model_a_dtype(self):
         a = model(self.root / "a", {"w": ("BF16", [2], bf16([1.0, 2.0]))})
         b = model(self.root / "b", {"w": ("F32", [2], np.asarray([3.0, 4.0], "<f4").tobytes())})

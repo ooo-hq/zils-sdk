@@ -56,7 +56,9 @@ zils merge ./model-a ./model-b --method slerp --weight 0.3 --out ./my-mix
   share the result.
 - Weight names line up across `model.` and `model.language_model.` prefixes, so
   a text-only fine-tune merges into its multimodal parent. Weights only the
-  first model has are kept unchanged.
+  first model has are kept unchanged. The second model's extra output heads
+  (`mtp.*`, `lm_head`) and vision tower are ignored when the first model has
+  none, so a d3 model merges with its Qwen base.
 - It refuses models whose shapes differ, a second model with weights the first
   lacks, and identical inputs. Nothing is uploaded, hosted or scored.
 

@@ -36,5 +36,7 @@ def run(args):
     )
     print(
         f"Merged {result['merged']} tensors ({args.method}, weight {args.weight}); "
-        f"kept {result['kept']} from the first model only. Wrote {result['out']}"
+        f"kept {result['kept']} from the first model only"
+        + (f", ignored {result['ignored']} extra in the second" if result["ignored"] else "")
+        + f". Wrote {result['out']}"
     )
