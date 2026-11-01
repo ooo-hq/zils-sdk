@@ -8,8 +8,10 @@ multimodal model; weights not every model has are kept from the first. Other mod
 heads (`mtp.*`, `lm_head`) and vision towers are ignored when the first model has none. Tensors
 stream in chunks through memory maps, so a 4B model never sits in memory whole."""
 
+import functools
 import json
 import math
+import operator
 import re
 import shutil
 import struct
@@ -146,10 +148,16 @@ def portions(weights, count):
     """Each model's share, normalised to sum to 1; even shares by default."""
     if weights is None:
         return [1 / count] * count
-    if len(weights) != count or not all(
-        isinstance(w, int | float) and math.isfinite(w) and w > 0 for w in weights
+    # A zero portion is allowed: that model then only supplies the weights the others lack. With
+    # weights 0,1 the first model's layout and extra tensors (a vision tower) carry the second's values.
+    if (
+        len(weights) != count
+        or not all(isinstance(w, int | float) and math.isfinite(w) and w >= 0 for w in weights)
+        or not any(w > 0 for w in weights)
     ):
-        raise ValueError(f"Give {count} positive weights, one per model.")
+        raise ValueError(
+            f"Give {count} weights, one per model: 0 or more, and at least one above 0."
+        )
     total = sum(weights)
     return [w / total for w in weights]
 
@@ -219,9 +227,14 @@ def merge(models, out, *, method="linear", weights=None, sources=None):
                     for low, high in chunks(count):
                         parts = [values(e, low, high) for e in entries]
                         changed = changed or any(not np.array_equal(parts[0], p) for p in parts[1:])
-                        merged = sum(
-                            f * p.astype(np.float64) for f, p in zip(factors, parts, strict=True)
-                        )
+                        # Zero-portion terms are left out and the sum starts from the first real
+                        # term (not sum()'s integer 0), so a lone term keeps its exact bits, -0 included.
+                        terms = [
+                            f * p.astype(np.float64)
+                            for f, p in zip(factors, parts, strict=True)
+                            if f != 0
+                        ]
+                        merged = functools.reduce(operator.add, terms)
                         if not np.isfinite(merged).all():
                             raise ValueError(f"Weight {key} is not finite after merging.")
                         target.write(encode(merged.astype("<f4"), item["dtype"]))
@@ -252,5 +265,6 @@ def merge(models, out, *, method="linear", weights=None, sources=None):
         "merged": len(shared),
         "kept": len(a) - len(shared),
         "ignored": len(ignored),
+        "zero": [number for number, share in enumerate(shares, start=1) if share == 0],
         "out": str(out),
     }

@@ -8,6 +8,13 @@
   for example a merge of text-only exports, which has no vision tower. Without
   the miner it prints the install line and the check to run later; a miner too
   old for the check is told to update.
+- `zils merge` accepts a zero portion, as long as one model's is above zero.
+  `--weights 0,1` writes the second model's exact values in the first model's
+  layout, keeping the first model's other tensors. That turns a text-only
+  fine-tune into a full Qwen3.5 model with its parent's vision tower:
+  `zils merge Qwen/Qwen3.5-0.8B <cousin> --weights 0,1 --pool d3-lite`.
+- Merges keep signed zeros: a weight that is −0 in every model stays −0
+  (it was written as +0).
 - The TypeScript SDK is versioned alongside the CLI; its runtime is unchanged.
 
 ## 0.4.9 — 2026-11-01

@@ -75,6 +75,14 @@ zils merge ./model-a ./model-b --method slerp --weight 0.3 --out ./my-mix
   (such as `vllm-sr/d3-lite`) first; a merge of text-only exports alone needs
   the Qwen parent's vision tower added before it can be a body. A mix of listed
   public models is paid the scout rate, not the trainer rate.
+- To submit a text-only public fine-tune (such as a listed cousin) as a body,
+  give its Qwen parent a zero portion. The result has the cousin's exact
+  language weights and the parent's unchanged vision tower; edit the copied
+  README to credit the cousin before you upload it:
+
+  ```sh
+  zils merge Qwen/Qwen3.5-0.8B cribl-ai/cribl-decision-2-0.8B --weights 0,1 --pool d3-lite --out ./cribl-body
+  ```
 - Hugging Face models download into `zils/models` in your cache folder,
   resume if interrupted, and are checked against the Hub's SHA-256.
   Set `HF_TOKEN` for gated or private models.
