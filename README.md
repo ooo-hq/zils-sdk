@@ -68,6 +68,13 @@ zils merge ./model-a ./model-b --method slerp --weight 0.3 --out ./my-mix
   model has are kept from the first. Other models' extra output heads
   (`mtp.*`, `lm_head`) and vision towers are ignored when the first model has
   none, so a d3 model merges with its Qwen base.
+- To submit the result to a subnet soup pool, add `--pool d3-lite` (or
+  `d3-mini`): with the Zils miner installed, the miner's body check runs on the
+  new folder and says whether it is a valid soup body, and why not. A body must
+  be the full Qwen3.5 model with its vision tower, so list a full checkpoint
+  (such as `vllm-sr/d3-lite`) first; a merge of text-only exports alone needs
+  the Qwen parent's vision tower added before it can be a body. A mix of listed
+  public models is paid the scout rate, not the trainer rate.
 - Hugging Face models download into `zils/models` in your cache folder,
   resume if interrupted, and are checked against the Hub's SHA-256.
   Set `HF_TOKEN` for gated or private models.

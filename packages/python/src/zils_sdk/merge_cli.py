@@ -1,6 +1,7 @@
 """`zils merge`: merge 2-5 models of the same family on this machine."""
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -40,6 +41,45 @@ def add_parser(subparsers):
     portion.add_argument(
         "--weight", type=float, help="With two models: the second model's share, 0-1"
     )
+    command.add_argument(
+        "--pool",
+        help="Check the result as a soup body for this pool (e.g. d3-lite, d3-mini) with the"
+        " Zils miner's body check, zils-miner",
+    )
+
+
+def body_check(out, pool):
+    """Run the miner's `commit-body --check` on `out`; 0 when it passes or can't run here."""
+    from .cli import MINER_INSTALL, miner_path
+
+    later = f"zils commit-body --pool {pool} --path {out} --check"
+    found = miner_path()
+    if found is None:
+        print(
+            f"To check it as a {pool} soup body, install the Zils miner ({MINER_INSTALL})"
+            f" and run:\n  {later}",
+            file=sys.stderr,
+        )
+        return 0
+    usage = subprocess.run(
+        [found, "commit-body", "--help"], capture_output=True, text=True, timeout=60
+    )
+    if "--check" not in usage.stdout:
+        print(
+            "Your zils-miner is older than the soup body check. Update it with zils-miner update,"
+            f" then run:\n  {later}",
+            file=sys.stderr,
+        )
+        return 1
+    code = subprocess.run(
+        [found, "commit-body", "--pool", pool, "--path", str(out), "--check"]
+    ).returncode
+    if code:
+        print(
+            f"{out} holds the merge, but it is not a {pool} soup body yet; see the reason above.",
+            file=sys.stderr,
+        )
+    return code
 
 
 def run(args):
@@ -75,5 +115,8 @@ def run(args):
         f"Merged {result['merged']} tensors from {len(folders)} models ({args.method}); "
         f"kept {result['kept']} from the first model only"
         + (f", ignored {result['ignored']} extras" if result["ignored"] else "")
-        + f". Wrote {result['out']}"
+        + f". Wrote {result['out']}",
+        flush=True,
     )
+    if args.pool and (code := body_check(result["out"], args.pool)):
+        raise SystemExit(code)

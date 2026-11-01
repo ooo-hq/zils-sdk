@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.10 — 2026-11-01
+
+- `zils merge --pool d3-lite` (or another soup pool) checks the result as a
+  soup body right after merging, with the Zils miner's own check
+  (`zils-miner commit-body --check`). It prints why a folder is not a body yet,
+  for example a merge of text-only exports, which has no vision tower. Without
+  the miner it prints the install line and the check to run later; a miner too
+  old for the check is told to update.
+- The TypeScript SDK is versioned alongside the CLI; its runtime is unchanged.
+
 ## 0.4.9 — 2026-11-01
 
 - `zils` on its own prints the Zils wordmark and the help (it used to exit
