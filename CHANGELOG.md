@@ -7,6 +7,9 @@
   SLERP, keeping the first model's files and layout. It needs numpy and
   huggingface_hub: the npm CLI installs them; from source use
   `pip install 'zils-sdk[merge]'`.
+- `zils merge` ignores the second model's extra output heads (`mtp.*`,
+  `lm_head`) and vision tower when the first model has none, instead of
+  refusing, so d3 models merge with Qwen bases and their fine-tunes.
 
 ## 0.4.3 — 2026-10-23
 

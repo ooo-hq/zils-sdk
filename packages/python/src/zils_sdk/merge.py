@@ -3,8 +3,10 @@
 The output keeps the first model's files and safetensors layout byte for byte, except that each
 weight both models share is replaced by the merge. Weight names line up across the common Hugging
 Face prefixes (`model.`, `model.language_model.`), so a text-only fine-tune merges into a multimodal
-parent; weights only the first model has are kept unchanged. Tensors stream in chunks through
-memory maps, so a 4B model never sits in memory whole."""
+parent; weights only the first model has are kept unchanged. The second model's extra output heads
+(`mtp.*`, `lm_head`) and vision tower are ignored when the first model has none, since the output keeps
+the first model's architecture. Tensors stream in chunks through memory maps, so a 4B model never sits
+in memory whole."""
 
 import json
 import math
@@ -20,6 +22,11 @@ from . import __version__
 METHODS = ("linear", "slerp")
 DTYPES = {"BF16": "<u2", "F16": "<f2", "F32": "<f4"}
 PREFIXES = ("model.language_model.", "language_model.model.", "language_model.", "model.")
+OPTIONAL = (
+    "mtp.",
+    "lm_head",
+    "visual.",
+)  # second-model weights dropped when the first model lacks them
 INDEX = "model.safetensors.index.json"
 LICENSES = ("LICENSE", "LICENSE.md", "LICENSE.txt")
 CHUNK = 1 << 24  # elements per chunk
@@ -134,7 +141,7 @@ def copy_files(first, second, out, shards):
 
 def merge(first, second, out, *, method="linear", weight=0.5, sources=None):
     """Write the merge of `first` and `second` (model folders) to the new folder `out`.
-    `weight` is the second model's share. Returns {"merged": n, "kept": n, "out": path}."""
+    `weight` is the second model's share. Returns {"merged": n, "kept": n, "ignored": n, "out": path}."""
     if method not in METHODS:
         raise ValueError(f"Unknown method {method}; use one of {', '.join(METHODS)}.")
     if not (isinstance(weight, int | float) and 0 < weight < 1):
@@ -148,7 +155,8 @@ def merge(first, second, out, *, method="linear", weight=0.5, sources=None):
     shared = set(a) & set(b)
     if not shared:
         raise ValueError("The two models share no weights; merge models of the same family.")
-    if extra := sorted(set(b) - set(a)):
+    ignored = sorted(key for key in set(b) - set(a) if key.startswith(OPTIONAL))
+    if extra := sorted(set(b) - set(a) - set(ignored)):
         raise ValueError(f"The second model's weight {extra[0]} is not in the first model.")
     for key in sorted(shared):
         info_a, info_b = a[key][2], b[key][2]
@@ -208,10 +216,16 @@ def merge(first, second, out, *, method="linear", weight=0.5, sources=None):
             "models": models,
             "merged": len(shared),
             "kept": len(a) - len(shared),
+            "ignored": len(ignored),
         }
         (partial / "merge.json").write_text(json.dumps(recipe, indent=2) + "\n")
         partial.rename(out)
     except BaseException:
         shutil.rmtree(partial, ignore_errors=True)
         raise
-    return {"merged": len(shared), "kept": len(a) - len(shared), "out": str(out)}
+    return {
+        "merged": len(shared),
+        "kept": len(a) - len(shared),
+        "ignored": len(ignored),
+        "out": str(out),
+    }
