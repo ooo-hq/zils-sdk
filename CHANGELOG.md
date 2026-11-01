@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.7 — 2026-11-01
+
+- `zils merge` cooks a soup: it merges 2–5 models of the same family. Every
+  model gets an even portion by default, as in the subnet's soup;
+  `--weights 2,1,1` sets portions in order. `--weight` (two models) and
+  `--method slerp` (exactly two) work as before.
+- `merge.json` records `weights` (one per model) instead of `weight`, and
+  other models' licences are copied as `LICENSE-model-2`, `LICENSE-model-3`, ….
+- The TypeScript SDK is versioned alongside the CLI; its runtime is unchanged.
+
 ## 0.4.6 — 2026-11-01
 
 - `zils merge` works on Python 3.15. It downloads Hugging Face models with its

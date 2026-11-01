@@ -50,8 +50,8 @@ npm run build --prefix packages/typescript
 npm pack ./packages/typescript
 ```
 
-This writes `zils-sdk-0.4.6.tgz` in the current directory. Install that tarball
-into your Node application with `npm install /path/to/zils-sdk-0.4.6.tgz`.
+This writes `zils-sdk-0.4.7.tgz` in the current directory. Install that tarball
+into your Node application with `npm install /path/to/zils-sdk-0.4.7.tgz`.
 The installed import is `@zils/sdk`; both `import` and `require` are supported.
 
 ## Credentials and defaults
@@ -192,7 +192,7 @@ answers, and error classes come from the compatible TypeSafe client.
 ## Ranking
 
 SDK version 0.2.0 adds experimental `rank`, using the existing model and HTTP API.
-Install TypeScript with `npm install @zils/sdk@^0.4.6`, or install the Python
+Install TypeScript with `npm install @zils/sdk@^0.4.7`, or install the Python
 checkout as described above.
 Requests use the configured Zils endpoint and existing Choice decisions.
 

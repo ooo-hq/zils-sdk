@@ -1,21 +1,44 @@
-"""`zils merge`: merge two models of the same family on this machine."""
+"""`zils merge`: merge 2-5 models of the same family on this machine."""
 
+import argparse
 import sys
 from pathlib import Path
 
 
+def weight_list(text):
+    try:
+        return [float(part) for part in text.split(",")]
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            "Give weights as numbers separated by commas, e.g. 1,1,2."
+        ) from None
+
+
 def add_parser(subparsers):
     command = subparsers.add_parser(
-        "merge", help="Merge two models of the same family into a new model folder"
+        "merge", help="Merge 2-5 models of the same family into a new model folder (a soup)"
     )
-    command.add_argument("first", help="First model: a folder or Hugging Face repo id")
-    command.add_argument("second", help="Second model: a folder or Hugging Face repo id")
+    command.add_argument(
+        "models",
+        nargs="+",
+        metavar="MODEL",
+        help="2-5 folders or Hugging Face repo ids; the first model's files are kept",
+    )
     command.add_argument("--out", type=Path, required=True, help="New folder for the merged model")
     command.add_argument(
-        "--method", choices=("linear", "slerp"), default="linear", help="Default linear"
+        "--method",
+        choices=("linear", "slerp"),
+        default="linear",
+        help="Default linear; SLERP needs exactly two models",
     )
-    command.add_argument(
-        "--weight", type=float, default=0.5, help="The second model's share, 0–1 (default 0.5)"
+    portion = command.add_mutually_exclusive_group()
+    portion.add_argument(
+        "--weights",
+        type=weight_list,
+        help="Each model's portion in order, e.g. 1,1,2 (default even)",
+    )
+    portion.add_argument(
+        "--weight", type=float, help="With two models: the second model's share, 0-1"
     )
 
 
@@ -29,18 +52,28 @@ def run(args):
             " From source: pip install 'zils-sdk[merge]'. With the npm CLI, set ZILS_PYTHON to"
             " another Python 3.11+ executable."
         ) from None
-    first, second = merge.resolve(args.first), merge.resolve(args.second)
+    weights = args.weights
+    if args.weight is not None:
+        if len(args.models) != 2:
+            raise ValueError(
+                "--weight is for two models; use --weights with one portion per model."
+            )
+        if not 0 < args.weight < 1:
+            raise ValueError(
+                "--weight must be between 0 and 1 (exclusive): the second model's share."
+            )
+        weights = [1 - args.weight, args.weight]
+    if weights is not None and len(weights) != len(args.models):
+        raise ValueError(f"Give {len(args.models)} weights, one per model.")
+    if not 2 <= len(args.models) <= merge.MAX_MODELS:
+        raise ValueError(f"Merge 2 to {merge.MAX_MODELS} models.")
+    folders = [merge.resolve(model) for model in args.models]
     result = merge.merge(
-        first,
-        second,
-        args.out,
-        method=args.method,
-        weight=args.weight,
-        sources=(args.first, args.second),
+        folders, args.out, method=args.method, weights=weights, sources=args.models
     )
     print(
-        f"Merged {result['merged']} tensors ({args.method}, weight {args.weight}); "
+        f"Merged {result['merged']} tensors from {len(folders)} models ({args.method}); "
         f"kept {result['kept']} from the first model only"
-        + (f", ignored {result['ignored']} extra in the second" if result["ignored"] else "")
+        + (f", ignored {result['ignored']} extras" if result["ignored"] else "")
         + f". Wrote {result['out']}"
     )

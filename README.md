@@ -37,30 +37,36 @@ Run `zils fit` in your project for a guided tour. `zils fit scan` finds the mode
 `record` logs what they receive and answer, and `zils fit run` replays that log on
 Zils to show how much of the traffic it can take. See [zils fit](docs/fit.md).
 
-## Merge two models
+## Merge models
 
-`zils merge` blends two fine-tunes of the same base model into a new model
-folder on your machine. Each model is a local folder or a Hugging Face repo id:
+`zils merge` blends 2–5 fine-tunes of the same base model into a new model
+folder on your machine: a soup, like the one the subnet cooks every day. Each
+model is a local folder or a Hugging Face repo id:
 
 ```sh
-zils merge eljiwo/jiwo-0.8b cribl-ai/cribl-decision-2-0.8B --out ./my-mix
+zils merge vllm-sr/d3-lite eljiwo/jiwo-0.8b cribl-ai/cribl-decision-2-0.8B --out ./my-soup
+zils merge ./model-a ./model-b ./model-c --weights 2,1,1 --out ./my-soup
 zils merge ./model-a ./model-b --method slerp --weight 0.3 --out ./my-mix
 ```
 
-- `--method linear` (default) averages the weights; `--method slerp` follows the
-  arc between them.
-- `--weight` is the second model's share, between 0 and 1 (default 0.5).
+- By default every model gets an even portion, as in the subnet's soup.
+  `--weights` sets portions in order (normalised to sum to one); with two
+  models, `--weight` is the second model's share.
+- `--method slerp` follows the arc between exactly two models.
 - The output keeps the first model's files and layout (config, tokenizer, any
-  answer layer), and `merge.json` records the recipe. The second model's
-  licence is copied as `LICENSE-second-model`; check both licences before you
-  share the result.
-- Weight names line up across `model.` and `model.language_model.` prefixes, so
-  a text-only fine-tune merges into its multimodal parent. Weights only the
-  first model has are kept unchanged. The second model's extra output heads
-  (`mtp.*`, `lm_head`) and vision tower are ignored when the first model has
+  answer layer), and `merge.json` records the recipe. Every other model's
+  licence is copied as `LICENSE-model-2`, `LICENSE-model-3`, …; check them
+  before you share the result.
+- Weight names line up across `model.` and `model.language_model.` prefixes,
+  so text-only fine-tunes merge into a multimodal model. Weights not every
+  model has are kept from the first. Other models' extra output heads
+  (`mtp.*`, `lm_head`) and vision towers are ignored when the first model has
   none, so a d3 model merges with its Qwen base.
-- It refuses models whose shapes differ, a second model with weights the first
-  lacks, and identical inputs. Nothing is uploaded, hosted or scored.
+- Hugging Face models download into `zils/models` in your cache folder,
+  resume if interrupted, and are checked against the Hub's SHA-256.
+  Set `HF_TOKEN` for gated or private models.
+- It refuses models whose shapes differ, weights the first model lacks, and
+  repeated or identical models. Nothing is uploaded, hosted or scored.
 
 ## Ranking
 
