@@ -1,12 +1,12 @@
-"""Merge two models of the same family into a new model folder.
+"""Merge 2-5 models of the same family into a new model folder: a soup, cooked locally.
 
 The output keeps the first model's files and safetensors layout byte for byte, except that each
-weight both models share is replaced by the merge. Weight names line up across the common Hugging
-Face prefixes (`model.`, `model.language_model.`), so a text-only fine-tune merges into a multimodal
-parent; weights only the first model has are kept unchanged. The second model's extra output heads
-(`mtp.*`, `lm_head`) and vision tower are ignored when the first model has none, since the output keeps
-the first model's architecture. Tensors stream in chunks through memory maps, so a 4B model never sits
-in memory whole."""
+weight every model shares is replaced by the merge: an even average by default (as the subnet's soup
+is), custom portions with `weights`, or SLERP for exactly two. Weight names line up across the common
+Hugging Face prefixes (`model.`, `model.language_model.`), so text-only fine-tunes merge into a
+multimodal model; weights not every model has are kept from the first. Other models' extra output
+heads (`mtp.*`, `lm_head`) and vision towers are ignored when the first model has none. Tensors
+stream in chunks through memory maps, so a 4B model never sits in memory whole."""
 
 import json
 import math
@@ -108,66 +108,90 @@ def chunks(count):
         yield begin, min(count, begin + CHUNK)
 
 
-def coefficients(a, b, count, method, weight):
-    """(share of a, share of b) for this tensor; SLERP's depend on the angle between the tensors."""
-    if method == "linear":
-        return 1 - weight, weight
+MAX_MODELS = 5  # a soup holds at most five bodies
+
+
+def slerp(a, b, count, weight):
+    """(share of a, share of b) for one tensor: SLERP's shares depend on the angle between the tensors."""
     dot = norm_a = norm_b = 0.0
     for begin, end in chunks(count):
         x, y = values(a, begin, end).astype(np.float64), values(b, begin, end).astype(np.float64)
         dot, norm_a, norm_b = dot + x @ y, norm_a + x @ x, norm_b + y @ y
     if not norm_a or not norm_b:
-        return 1 - weight, weight
+        return [1 - weight, weight]
     cosine = min(1.0, max(-1.0, dot / math.sqrt(norm_a * norm_b)))
     if abs(cosine) > SLERP_PARALLEL:
-        return 1 - weight, weight
+        return [1 - weight, weight]
     angle = math.acos(cosine)
-    return math.sin((1 - weight) * angle) / math.sin(angle), math.sin(weight * angle) / math.sin(
-        angle
-    )
+    return [
+        math.sin((1 - weight) * angle) / math.sin(angle),
+        math.sin(weight * angle) / math.sin(angle),
+    ]
 
 
-def copy_files(first, second, out, shards):
+def copy_files(models, out, shards):
+    first = models[0]
     for item in first.iterdir():
         if item.name.startswith(".") or item.name in shards:
             continue
         (shutil.copytree if item.is_dir() else shutil.copy2)(item, out / item.name)
-    for name in LICENSES:
-        if (second / name).is_file():
-            stem, dot, suffix = name.partition(".")
-            shutil.copy2(second / name, out / f"{stem}-second-model{dot}{suffix}")
+    for number, other in enumerate(models[1:], start=2):
+        for name in LICENSES:
+            if (other / name).is_file():
+                stem, dot, suffix = name.partition(".")
+                shutil.copy2(other / name, out / f"{stem}-model-{number}{dot}{suffix}")
 
 
-def merge(first, second, out, *, method="linear", weight=0.5, sources=None):
-    """Write the merge of `first` and `second` (model folders) to the new folder `out`.
-    `weight` is the second model's share. Returns {"merged": n, "kept": n, "ignored": n, "out": path}."""
+def portions(weights, count):
+    """Each model's share, normalised to sum to 1; even shares by default."""
+    if weights is None:
+        return [1 / count] * count
+    if len(weights) != count or not all(
+        isinstance(w, int | float) and math.isfinite(w) and w > 0 for w in weights
+    ):
+        raise ValueError(f"Give {count} positive weights, one per model.")
+    total = sum(weights)
+    return [w / total for w in weights]
+
+
+def merge(models, out, *, method="linear", weights=None, sources=None):
+    """Write the merge of `models` (2-5 model folders) to the new folder `out`, in the first model's layout.
+    `weights` are each model's portion (even by default). Returns {"merged", "kept", "ignored", "out"}."""
+    models, out = [Path(m) for m in models], Path(out)
+    if not 2 <= len(models) <= MAX_MODELS:
+        raise ValueError(f"Merge 2 to {MAX_MODELS} models.")
     if method not in METHODS:
         raise ValueError(f"Unknown method {method}; use one of {', '.join(METHODS)}.")
-    if not (isinstance(weight, int | float) and 0 < weight < 1):
-        raise ValueError("Weight must be between 0 and 1 (exclusive): the second model's share.")
-    first, second, out = Path(first), Path(second), Path(out)
+    if method == "slerp" and len(models) != 2:
+        raise ValueError("SLERP merges exactly two models; use linear for three or more.")
+    shares = portions(weights, len(models))
     if out.exists():
         raise FileExistsError(f"{out} already exists; choose a new output folder.")
-    if first.resolve() == second.resolve():
-        raise ValueError("Both arguments name the same model; choose two different models.")
-    a, b = tensors(first), tensors(second)
-    shared = set(a) & set(b)
+    if len({m.resolve() for m in models}) != len(models):
+        raise ValueError("Two arguments name the same model; choose different models.")
+    found = [tensors(m) for m in models]
+    a = found[0]
+    shared = set(a).intersection(*found[1:])
     if not shared:
-        raise ValueError("The two models share no weights; merge models of the same family.")
-    ignored = sorted(key for key in set(b) - set(a) if key.startswith(OPTIONAL))
-    if extra := sorted(set(b) - set(a) - set(ignored)):
-        raise ValueError(f"The second model's weight {extra[0]} is not in the first model.")
+        raise ValueError("The models share no weights; merge models of the same family.")
+    ignored = set()
+    for number, other in enumerate(found[1:], start=2):
+        extra = set(other) - set(a)
+        ignored |= {key for key in extra if key.startswith(OPTIONAL)}
+        if missing := sorted(key for key in extra if not key.startswith(OPTIONAL)):
+            raise ValueError(f"Model {number}'s weight {missing[0]} is not in the first model.")
     for key in sorted(shared):
-        info_a, info_b = a[key][2], b[key][2]
-        if info_a["shape"] != info_b["shape"]:
-            raise ValueError(
-                f"Weight {key} differs in shape: {info_a['shape']} vs {info_b['shape']}."
-            )
-        if info_a["dtype"] not in DTYPES or info_b["dtype"] not in DTYPES:
-            raise ValueError(
-                f"Weight {key} has dtype {info_b['dtype']}; merge needs BF16, F16 or F32."
-            )
-    shards = set(layout(first).values())
+        for other in found[1:]:
+            if a[key][2]["shape"] != other[key][2]["shape"]:
+                raise ValueError(
+                    f"Weight {key} differs in shape: {a[key][2]['shape']} vs {other[key][2]['shape']}."
+                )
+            for info in (a[key][2], other[key][2]):
+                if info["dtype"] not in DTYPES:
+                    raise ValueError(
+                        f"Weight {key} has dtype {info['dtype']}; merge needs BF16, F16 or F32."
+                    )
+    shards = set(layout(models[0]).values())
     partial = out.with_name(f".{out.name}.partial")
     if partial.exists():
         shutil.rmtree(partial)
@@ -176,8 +200,8 @@ def merge(first, second, out, *, method="linear", weight=0.5, sources=None):
         changed = False
         by_name = {entry[3]: (key, entry) for key, entry in a.items()}
         for shard in sorted(shards):
-            start, info = header(first / shard)
-            with (first / shard).open("rb") as source, (partial / shard).open("wb") as target:
+            start, info = header(models[0] / shard)
+            with (models[0] / shard).open("rb") as source, (partial / shard).open("wb") as target:
                 target.write(source.read(start))  # the first model's header, offsets unchanged
                 for name, item in info.items():
                     if name == "__metadata__":
@@ -190,29 +214,31 @@ def merge(first, second, out, *, method="linear", weight=0.5, sources=None):
                         target.write(source.read(end - begin))
                         continue
                     count = math.prod(item["shape"])
-                    share_a, share_b = coefficients(entry, b[key], count, method, weight)
+                    entries = [entry] + [other[key] for other in found[1:]]
+                    factors = slerp(*entries, count, shares[1]) if method == "slerp" else shares
                     for low, high in chunks(count):
-                        x, y = values(entry, low, high), values(b[key], low, high)
-                        changed = changed or not np.array_equal(x, y)
-                        merged = share_a * x.astype(np.float64) + share_b * y.astype(np.float64)
+                        parts = [values(e, low, high) for e in entries]
+                        changed = changed or any(not np.array_equal(parts[0], p) for p in parts[1:])
+                        merged = sum(
+                            f * p.astype(np.float64) for f, p in zip(factors, parts, strict=True)
+                        )
                         if not np.isfinite(merged).all():
                             raise ValueError(f"Weight {key} is not finite after merging.")
                         target.write(encode(merged.astype("<f4"), item["dtype"]))
         if not changed:
-            raise ValueError("The two models have identical weights; there is nothing to merge.")
-        copy_files(first, second, partial, shards)
-        names = sources or (str(first), str(second))
-        models = []
-        for name, path in zip(names, (first, second), strict=True):
+            raise ValueError("The models have identical weights; there is nothing to merge.")
+        copy_files(models, partial, shards)
+        recipe_models = []
+        for name, path in zip(sources or [str(m) for m in models], models, strict=True):
             entry = {"source": name}
             if path.parent.name == "snapshots":
                 entry["revision"] = path.name
-            models.append(entry)
+            recipe_models.append(entry)
         recipe = {
             "tool": f"zils merge {__version__}",
             "method": method,
-            "weight": weight,
-            "models": models,
+            "weights": shares,
+            "models": recipe_models,
             "merged": len(shared),
             "kept": len(a) - len(shared),
             "ignored": len(ignored),
