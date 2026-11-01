@@ -245,15 +245,22 @@ def try_loop(style, decisions):
             print()
 
 
+def banner(stream=None):
+    """The Zils wordmark in brand purple over a spectrum rule, for `zils`, `zils --help` and `zils fit`."""
+    stream = stream or sys.stdout
+    style = Style(stream)
+    print(file=stream)
+    for line in LOGO.splitlines():
+        print(style.rgb(line, PURPLE), file=stream)
+    print("  " + style.spectrum(WIDTH - 2), file=stream)
+    print(file=stream)
+
+
 def guide(path, include_tests=False):
     style = Style(sys.stdout)
     root = Path(path).resolve()
     base = root if root.is_dir() else root.parent
-    print()
-    for line in LOGO.splitlines():
-        print(style.rgb(line, PURPLE))
-    print("  " + style.spectrum(WIDTH - 2))
-    print()
+    banner()
     say("Zils is a small model that answers yes-or-no and pick-one questions")
     say("inside your app. This finds where your code already asks an AI those")
     say(f"questions, so you can see what Zils would take over in {style.bold(root.name)}.")

@@ -228,8 +228,12 @@ def miner(argv) -> int:
 
 
 def main() -> int:
-    from .fit_guide import main_args
+    from .fit_guide import banner, main_args
 
+    if sys.argv[1:] in ([], ["-h"], ["--help"]):
+        banner()
+        parser().print_help()
+        return 0
     if sys.argv[1:2] and sys.argv[1] in MINER_COMMANDS:
         try:
             return miner(sys.argv[1:])
