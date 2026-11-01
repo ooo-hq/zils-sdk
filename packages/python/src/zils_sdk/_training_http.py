@@ -7,6 +7,7 @@ import httpx
 from ._input import parse_json
 
 MAX_JSON = 1024 * 1024
+BILLING_URL = "https://zils.ai/billing"
 
 
 class TrainingError(Exception):
@@ -32,11 +33,11 @@ def read_json(
         with httpx.Client(follow_redirects=False, timeout=timeout) as client:
             with client.stream(method, url, headers=headers, json=body, data=form) as response:
                 if not 200 <= response.status_code < 300:
-                    guidance = (
-                        "Run zils login."
-                        if response.status_code == 401
-                        else "Check the job and account before trying again."
-                    )
+                    guidance = {
+                        401: "Run zils login.",
+                        402: "There is not enough prepaid credit on this account, or a payment"
+                        f" needs attention. Add credit at {BILLING_URL}.",
+                    }.get(response.status_code, "Check the job and account before trying again.")
                     raise TrainingError(
                         response.status_code,
                         f"Training service returned HTTP {response.status_code}. {guidance} No automatic retry was made.",

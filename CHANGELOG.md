@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.11 — 2026-11-01
+
+- `zils train` explains running out of credit. When the service refuses to
+  start a job for credit (HTTP 402), the message says so, links to
+  https://zils.ai/billing and prints the exact `zils train resume <job> --train
+  … --calibration … --test …` command: the job keeps its uploads, so after
+  adding credit, resume submits it without uploading again. It used to say only
+  "Training service returned HTTP 402. Check the job and account".
+- `zils train status` and `list` show why a job failed, for example the price
+  when a dataset costs more than the available credit. Cancelled jobs are shown
+  as before. Training errors still never echo the service's error responses.
+- The TypeScript SDK is versioned alongside the CLI; its runtime is unchanged.
+
 ## 0.4.10 — 2026-11-01
 
 - `zils merge --pool d3-lite` (or another soup pool) checks the result as a

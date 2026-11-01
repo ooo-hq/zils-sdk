@@ -5,6 +5,7 @@ import json
 import math
 import os
 import re
+import shlex
 import shutil
 import sys
 import tempfile
@@ -18,7 +19,7 @@ import httpx
 from . import account, training_data
 from ._files import atomic_json, file_lock
 from ._input import parse_json
-from ._training_http import TrainingError, read_json
+from ._training_http import BILLING_URL, TrainingError, read_json
 from .credentials import config_path
 
 H2O = "h2o-lightning-4b-v1.2.3"
@@ -248,6 +249,10 @@ def public_status(job):
         result["workflow"] = workflow["state"]
     if job["status"] == "failed":
         result["cancelled"] = job.get("error") == "Cancelled by customer."
+        if not result["cancelled"] and isinstance(job.get("error"), str):
+            # The service stores this reason for the customer (e.g. the price when credit ran
+            # short); print it plainly: no control characters, bounded.
+            result["error"] = "".join(c for c in job["error"] if c.isprintable())[:500]
     if job["status"] == "completed":
         delivery = (job.get("result") or {}).get("delivery") or {}
         data = job.get("result") or {}
@@ -461,12 +466,14 @@ class TrainingClient:
                 file=sys.stderr,
             )
             with file_lock(self.root / (job["id"] + ".lock")):
-                return self._upload_and_submit(session, receipt, response)
+                return self._upload_and_submit(session, receipt, response, files)
         finally:
             if not retain:
                 self._cleanup(prepared["snapshot"])
 
-    def _upload_and_submit(self, session, receipt, response):
+    def _upload_and_submit(self, session, receipt, response, files):
+        """Upload missing splits and submit; `files` are the caller's original paths, for the
+        resume command an out-of-credit refusal prints."""
         job_id = receipt["job_id"]
         job = _job(response, job_id)
         verify_job_profile(job, receipt)
@@ -527,7 +534,23 @@ class TrainingClient:
                 ) from None
         receipt["stage"] = "submitting"
         self._save(receipt)
-        result = _job(self._request(session, "POST", f"/v1/jobs/{job_id}/submit", {}), job_id)
+        try:
+            submitted = self._request(session, "POST", f"/v1/jobs/{job_id}/submit", {})
+        except TrainingError as error:
+            if error.status != 402:
+                raise
+            # The job keeps its uploads in `uploading`; after adding credit, resume submits it.
+            again = " ".join(
+                f"--{split} {shlex.quote(str(files[split]))}" for split in training_data.SPLITS
+            )
+            raise TrainingError(
+                402,
+                f"Job {job_id} is uploaded but was not started: there is not enough prepaid"
+                " credit on this account, or a payment needs attention. Add credit at"
+                f" {BILLING_URL}, then run:\n  zils train resume {job_id} {again}\n"
+                "No request was retried.",
+            ) from None
+        result = _job(submitted, job_id)
         verify_job_profile(result, receipt)
         if result["status"] == "uploading":
             raise ValueError(f"Submission has not been confirmed. Resume job {job_id}.")
@@ -569,6 +592,7 @@ class TrainingClient:
                     session,
                     receipt,
                     self._request(session, "POST", f"/v1/jobs/{job_id}/uploads", {}),
+                    files,
                 )
         finally:
             if not retain:

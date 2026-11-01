@@ -104,6 +104,8 @@ def render(result):
         lines.append("API model: " + result["model_id"])
     elif result.get("download_available"):
         lines.append("Accepted model available to download. API readiness has not been confirmed.")
+    if "error" in result:
+        lines.append("Reason: " + result["error"])
     if result.get("cancelled"):
         lines.append(
             "Cancellation recorded. Running workers may finish; incurred costs may remain."

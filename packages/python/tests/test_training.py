@@ -63,6 +63,54 @@ class TrainingTests(unittest.TestCase):
             self.assertNotIn("private-grant", receipt + output.getvalue() + json.dumps(result))
             self.assertEqual(list((self.receipts / "snapshots").glob("*")), [])
 
+    def test_out_of_credit_at_submit_says_to_add_credit_and_resume(self):
+        said = "Add credit or resolve your payment issue before submitting this job."
+        with training_server() as fixture, redirect_stderr(io.StringIO()):
+            fixture.submit_error = (402, {"error": said})
+            client = self.client(fixture)
+            with self.assertRaises(TrainingError) as caught:
+                self.submit(client)
+            job_id = next(iter(fixture.jobs))
+            message = str(caught.exception)
+            self.assertEqual(caught.exception.status, 402)
+            self.assertIn("not enough prepaid credit", message)
+            self.assertIn("https://zils.ai/billing", message)
+            self.assertNotIn(said, message)  # training errors never echo remote text
+            self.assertIn(f"zils train resume {job_id}", message)
+            for split, path in self.files.items():
+                self.assertIn(f"--{split} {path}", message)
+            self.assertNotIn("Check the job and account", message)
+            self.assertEqual(fixture.jobs[job_id]["status"], "uploading")
+            puts = sum(call[0] == "PUT" for call in fixture.calls)
+            fixture.submit_error = None
+            result = client.resume(job_id, self.files)
+            self.assertEqual(result["status"], "validating")
+            self.assertEqual(sum(call[0] == "PUT" for call in fixture.calls), puts)
+
+    def test_a_failed_jobs_reason_is_shown(self):
+        from zils_sdk.training_cli import render
+
+        reason = (
+            "Training this dataset costs $3.40 (17000000 training tokens at $0.20 per million)."
+            " Add credit and submit it again."
+        )
+        with training_server() as fixture, redirect_stderr(io.StringIO()):
+            client = self.client(fixture)
+            result = self.submit(client)
+            fixture.jobs[result["id"]].update(status="failed", error=reason)
+            status = client.get(result["id"])
+            self.assertEqual(status["error"], reason)
+            self.assertIn("Reason: " + reason, render(status))
+            fixture.jobs[result["id"]]["error"] = "Bad\x1b[31m data\n" + "x" * 900
+            shown = client.get(result["id"])["error"]
+            self.assertTrue(shown.startswith("Bad[31m data"))
+            self.assertTrue(shown.isprintable())
+            self.assertLessEqual(len(shown), 500)
+            fixture.jobs[result["id"]]["error"] = "Cancelled by customer."
+            status = client.get(result["id"])
+            self.assertNotIn("error", status)
+            self.assertIn("Cancellation recorded", render(status))
+
     def test_lost_create_reply_retains_pending_receipt_and_never_retries(self):
         with training_server() as fixture:
             fixture.drop_create = True
