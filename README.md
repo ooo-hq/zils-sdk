@@ -37,6 +37,29 @@ Run `zils fit` in your project for a guided tour. `zils fit scan` finds the mode
 `record` logs what they receive and answer, and `zils fit run` replays that log on
 Zils to show how much of the traffic it can take. See [zils fit](docs/fit.md).
 
+## Merge two models
+
+`zils merge` blends two fine-tunes of the same base model into a new model
+folder on your machine. Each model is a local folder or a Hugging Face repo id:
+
+```sh
+zils merge eljiwo/jiwo-0.8b cribl-ai/cribl-decision-2-0.8B --out ./my-mix
+zils merge ./model-a ./model-b --method slerp --weight 0.3 --out ./my-mix
+```
+
+- `--method linear` (default) averages the weights; `--method slerp` follows the
+  arc between them.
+- `--weight` is the second model's share, between 0 and 1 (default 0.5).
+- The output keeps the first model's files and layout (config, tokenizer, any
+  answer layer), and `merge.json` records the recipe. The second model's
+  licence is copied as `LICENSE-second-model`; check both licences before you
+  share the result.
+- Weight names line up across `model.` and `model.language_model.` prefixes, so
+  a text-only fine-tune merges into its multimodal parent. Weights only the
+  first model has are kept unchanged.
+- It refuses models whose shapes differ, a second model with weights the first
+  lacks, and identical inputs. Nothing is uploaded, hosted or scored.
+
 ## Ranking
 
 SDK version 0.2.0 adds `rank(...)` for ordering 2–10 JSON items against a

@@ -8,7 +8,7 @@ import socket
 import sys
 from pathlib import Path
 
-from . import ZilsClient, ZilsError, __version__, account, fit_cli, training_cli
+from . import ZilsClient, ZilsError, __version__, account, fit_cli, merge_cli, training_cli
 from ._config import DEFAULT_BASE_URL, setting, validate_key, validate_url
 from ._input import check_request, error_message, parse_json
 from ._training_http import TrainingError
@@ -76,6 +76,7 @@ def parser() -> argparse.ArgumentParser:
     decide.add_argument("--model", help="Model name; defaults to ZILS_DEFAULT_MODEL or zils-shared")
     training_cli.add_parser(commands)
     fit_cli.add_parser(commands)
+    merge_cli.add_parser(commands)
     return root
 
 
@@ -136,6 +137,9 @@ def run(args) -> None:
         return
     if args.command == "fit":
         fit_cli.run(args)
+        return
+    if args.command == "merge":
+        merge_cli.run(args)
         return
     if args.command == "logout":
         account.logout()
