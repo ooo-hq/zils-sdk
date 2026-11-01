@@ -100,5 +100,88 @@ class CliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
 
 
+class MinerForwardTests(unittest.TestCase):
+    """`zils <miner command>` runs `zils-miner` from the miner install (ZIL-127)."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+        self.home = self.root / "home"
+        self.home.mkdir()
+        self.path_dir = self.root / "path"
+        self.path_dir.mkdir()
+        self.record = self.root / "args.json"
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("ZILS_", "TYPESAFE_"))}
+        self.env.update(
+            HOME=str(self.home), PATH=f"{self.path_dir}{os.pathsep}/usr/bin{os.pathsep}/bin"
+        )
+
+    def fake_miner(self, folder):
+        folder.mkdir(parents=True, exist_ok=True)
+        script = folder / "zils-miner"
+        script.write_text(
+            f"#!{sys.executable}\n"
+            "import json, sys\n"
+            f"open({str(self.record)!r}, 'w').write(json.dumps(sys.argv[1:]))\n"
+            "print('miner says hi')\n"
+            "sys.exit(7)\n"
+        )
+        script.chmod(0o755)
+
+    def run_cli(self, *args):
+        return subprocess.run(
+            [sys.executable, "-m", "zils_sdk.cli", *args],
+            env=self.env,
+            text=True,
+            capture_output=True,
+            timeout=15,
+        )
+
+    def test_miner_commands_run_zils_miner_with_the_same_arguments(self):
+        self.fake_miner(self.path_dir)
+        for command in (
+            "setup",
+            "doctor",
+            "update",
+            "commit-candidate",
+            "commit-body",
+            "announce-serving",
+            "serve",
+        ):
+            args = [command, "--network", "test", "--model", "d3-mini 4.5b"]
+            result = self.run_cli(*args)
+            self.assertEqual(result.returncode, 7, result.stderr)
+            self.assertEqual(result.stdout, "miner says hi\n")
+            self.assertEqual(json.loads(self.record.read_text()), args)
+
+    def test_the_installer_bin_folder_is_found_off_path(self):
+        self.fake_miner(self.home / ".local/bin")
+        result = self.run_cli("doctor")
+        self.assertEqual(result.returncode, 7, result.stderr)
+        self.assertEqual(json.loads(self.record.read_text()), ["doctor"])
+
+    def test_without_the_miner_install_it_says_how_to_get_it(self):
+        result = self.run_cli("doctor", "--model", "x")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("zils-miner", result.stderr)
+        self.assertIn("curl -fsSL https://zils.ai/install.sh | sh", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_help_lists_both_command_groups(self):
+        result = self.run_cli("--help")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("decide", result.stdout)
+        self.assertIn("Miner commands", result.stdout)
+        for command in ("setup", "doctor", "commit-candidate", "serve"):
+            self.assertIn(command, result.stdout.split("Miner commands", 1)[1])
+
+    def test_customer_commands_are_not_forwarded(self):
+        self.fake_miner(self.path_dir)
+        result = self.run_cli("models", "--help")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.record.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

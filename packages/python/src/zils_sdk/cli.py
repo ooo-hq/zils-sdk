@@ -4,7 +4,9 @@ import argparse
 import getpass
 import json
 import os
+import shutil
 import socket
+import subprocess
 import sys
 from pathlib import Path
 
@@ -15,6 +17,18 @@ from ._training_http import TrainingError
 from .credentials import config_path, load_credentials, save_credentials
 
 MAX_INPUT = 1024 * 1024
+# Miner commands belong to the Zils miner install (`zils-miner`, from the subnet repository's
+# installer); `zils` hands them over unchanged so one command works for customers and miners.
+MINER_COMMANDS = {
+    "setup": "choose a base profile, wallet, candidate and repo",
+    "doctor": "check the miner setup and print the next command",
+    "update": "reinstall the miner at the stable release",
+    "commit-candidate": "upload a base candidate and commit it on chain",
+    "commit-body": "check a soup-pool body and commit it on chain",
+    "announce-serving": "write your public serving endpoint on chain",
+    "serve": "serve z3 checkpoints to validators",
+}
+MINER_INSTALL = "curl -fsSL https://zils.ai/install.sh | sh"
 
 
 def read_input(value: str) -> str:
@@ -39,7 +53,14 @@ def api_key_source(value):
 
 
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(prog="zils", description="Train and call Zils decision models.")
+    root = argparse.ArgumentParser(
+        prog="zils",
+        description="Train and call Zils decision models.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Miner commands (run by zils-miner from the miner install):\n"
+        + "".join(f"    {name:<20}{text}\n" for name, text in MINER_COMMANDS.items())
+        + f"Install the miner with: {MINER_INSTALL}",
+    )
     root.add_argument("--version", action="version", version=f"zils {__version__}")
     commands = root.add_subparsers(dest="command", required=True)
     login = commands.add_parser(
@@ -187,9 +208,33 @@ def run(args) -> None:
         )
 
 
+def miner(argv) -> int:
+    """Run `zils-miner` with the same arguments: from PATH, else the installer's ~/.local/bin."""
+    found = shutil.which("zils-miner")
+    local = Path.home() / ".local/bin/zils-miner"
+    if found is None and os.access(local, os.X_OK):
+        found = str(local)
+    if found is None:
+        print(
+            f"zils {argv[0]} is a miner command, run by zils-miner, which is not installed here.\n"
+            f"Install the Zils miner with: {MINER_INSTALL}",
+            file=sys.stderr,
+        )
+        return 2
+    command = [found, *argv]
+    if os.name == "nt":
+        return subprocess.run(command).returncode
+    os.execv(found, command)
+
+
 def main() -> int:
     from .fit_guide import main_args
 
+    if sys.argv[1:2] and sys.argv[1] in MINER_COMMANDS:
+        try:
+            return miner(sys.argv[1:])
+        except KeyboardInterrupt:
+            return 130
     args = parser().parse_args(main_args(sys.argv[1:]))
     try:
         run(args)

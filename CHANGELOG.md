@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.8 — 2026-11-01
+
+- One `zils` for customers and miners. The miner commands (`setup`, `doctor`,
+  `update`, `commit-candidate`, `commit-body`, `announce-serving`, `serve`) now
+  run the Zils miner's own command, `zils-miner`, with the same arguments and
+  exit code. Without a miner install, `zils doctor` and the others say how to
+  get one (`curl -fsSL https://zils.ai/install.sh | sh`). `zils --help` lists
+  both groups.
+- The miner installer used to link the miner as `zils`, which hid this CLI on
+  machines with both. It now links `zils-miner` and removes that old link.
+- The TypeScript SDK is versioned alongside the CLI; its runtime is unchanged.
+
 ## 0.4.7 — 2026-11-01
 
 - `zils merge` cooks a soup: it merges 2–5 models of the same family. Every

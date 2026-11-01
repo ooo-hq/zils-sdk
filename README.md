@@ -24,6 +24,12 @@ Use **`zils login`** for browser account sign-in, then `zils train` to submit an
 manage z3-mini text training (H2O and JevK5 apply only to downloading older accepted results). [Training CLI guide](docs/training-cli.md). Account
 sessions and inference API keys are separate; browser login does not create a key.
 
+Miners use the same `zils`: `zils setup`, `zils doctor`, `zils commit-candidate`
+and the other miner commands run `zils-miner` from the Zils miner install
+(`curl -fsSL https://zils.ai/install.sh | sh`, a separate GPU-side install from the
+subnet repository). Without it, those commands print the install line; `zils --help`
+lists both groups.
+
 ## Where does Zils fit?
 
 Paste this into Claude Code, Cursor or Codex in your project:
