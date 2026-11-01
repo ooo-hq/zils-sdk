@@ -90,7 +90,7 @@ def runtime():
                     "--only-binary=:all:",
                     "--index-url",
                     "https://pypi.org/simple",
-                    str(wheel),
+                    f"{wheel}[merge]",  # numpy + huggingface_hub for zils merge
                 ],
                 stdout=sys.stderr,
                 check=True,

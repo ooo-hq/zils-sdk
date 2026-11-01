@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `zils merge FIRST SECOND --out DIR` merges two models of the same family
+  (folders or Hugging Face repo ids) on your machine, by linear average or
+  SLERP, keeping the first model's files and layout. It needs numpy and
+  huggingface_hub: the npm CLI installs them; from source use
+  `pip install 'zils-sdk[merge]'`.
+
 ## 0.4.3 — 2026-10-23
 
 - Training help and current documentation use the z3 public model-line names.

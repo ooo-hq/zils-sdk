@@ -30,7 +30,7 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node }}
-      - run: python -m pip install -r requirements/dev.txt "./packages/python[mcp]"
+      - run: python -m pip install -r requirements/dev.txt "./packages/python[mcp,merge]"
       - run: npm ci --prefix packages/typescript
       - run: make check PYTHON=python
       - run: python -m build packages/python

@@ -14,6 +14,7 @@ dependencies = ["typesafe-sdk==0.7.2", "httpx==0.28.1"]
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.28,<2"]
+merge = ["numpy>=1.26", "huggingface_hub>=0.30"]
 
 [project.scripts]
 zils = "zils_sdk.cli:main"
