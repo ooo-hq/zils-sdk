@@ -36,7 +36,8 @@ def add_parser(subparsers):
     portion.add_argument(
         "--weights",
         type=weight_list,
-        help="Each model's portion in order, e.g. 1,1,2 (default even)",
+        help="Each model's portion in order, e.g. 1,1,2 (default even); 0,1 gives the second"
+        " model's values in the first model's layout",
     )
     portion.add_argument(
         "--weight", type=float, help="With two models: the second model's share, 0-1"
@@ -118,5 +119,13 @@ def run(args):
         + f". Wrote {result['out']}",
         flush=True,
     )
+    for number in result["zero"]:
+        print(
+            "Model 1 has a zero portion: it only supplies the weights the others lack"
+            " (its layout and files, and tensors such as a vision tower)."
+            if number == 1
+            else f"Model {number} has a zero portion and adds nothing.",
+            flush=True,
+        )
     if args.pool and (code := body_check(result["out"], args.pool)):
         raise SystemExit(code)

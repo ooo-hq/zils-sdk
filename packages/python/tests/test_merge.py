@@ -310,11 +310,46 @@ class MergeTests(unittest.TestCase):
 
     def test_weights_and_method_are_checked(self):
         a, b = self.pair([1.0], [2.0])
-        for weights in ([0.0, 1.0], [-0.5, 1.5], [float("nan"), 1.0], [1.0], [1.0, 1.0, 1.0]):
+        for weights in ([0.0, 0.0], [-0.5, 1.5], [float("nan"), 1.0], [1.0], [1.0, 1.0, 1.0]):
             with self.subTest(weights=weights), self.assertRaisesRegex(ValueError, "weights"):
                 merge.merge([a, b], self.root / "out", weights=weights)
         with self.assertRaisesRegex(ValueError, "method"):
             merge.merge([a, b], self.root / "out", method="ties")
+
+    def test_a_zero_portion_grafts_a_text_only_cousin_onto_its_parent(self):
+        # The parent is the full layout with a vision tower and, like Qwen3.5, some F32 language
+        # tensors; the cousin is a text-only bf16 export. Portions 0,1 keep the parent's layout and
+        # vision tower and must carry the cousin's language values over bit for bit.
+        cousin_w, cousin_a = [0.0, -2.0, 0.5], [1.0, -0.0]
+        parent = model(
+            self.root / "parent",
+            {
+                "model.language_model.layers.0.w": ("BF16", [3], bf16([-1.0, 3.0, -4.0])),
+                "model.language_model.layers.0.linear_attn.A_log": (
+                    "F32", [2], np.array([0.25, -8.0], "<f4").tobytes(),
+                ),
+                "model.visual.patch": ("BF16", [2], bf16([7.0, -6.0])),
+            },
+        )  # fmt: skip
+        cousin = model(
+            self.root / "cousin",
+            {
+                "model.layers.0.w": ("BF16", [3], bf16(cousin_w)),
+                "model.layers.0.linear_attn.A_log": ("BF16", [2], bf16(cousin_a)),
+            },
+        )
+        summary = merge.merge([parent, cousin], self.root / "out", weights=[0, 1])
+        out = read_safetensors(self.root / "out" / "model.safetensors")
+        w = out["model.language_model.layers.0.w"]
+        self.assertEqual(w[0], "BF16")
+        np.testing.assert_array_equal(w[2], cousin_w)
+        self.assertEqual(list(np.signbit(w[2])), list(np.signbit(cousin_w)))
+        a_log = out["model.language_model.layers.0.linear_attn.A_log"]
+        self.assertEqual(a_log[0], "F32")  # the parent's format, holding the cousin's values
+        np.testing.assert_array_equal(a_log[2], cousin_a)
+        self.assertEqual(list(np.signbit(a_log[2])), list(np.signbit(cousin_a)))
+        np.testing.assert_array_equal(out["model.visual.patch"][2], [7.0, -6.0])
+        self.assertEqual(summary["zero"], [1])
 
     def test_a_folder_resolves_to_itself_and_other_text_is_refused(self):
         a = model(self.root / "a", {"w": ("BF16", [1], bf16([1.0]))})
@@ -354,6 +389,14 @@ class MergeCliTests(unittest.TestCase):
             )  # fmt: skip
             self.assertEqual(three.returncode, 0, three.stderr)
             self.assertIn("Merged 1 tensors from 3 models", three.stdout)
+            graft = subprocess.run(
+                [sys.executable, "-m", "zils_sdk.cli", "merge", str(a), str(b), "--out", str(root / "graft"),
+                 "--weights", "0,1"],
+                capture_output=True, text=True, env=env, timeout=60,
+            )  # fmt: skip
+            self.assertEqual(graft.returncode, 0, graft.stderr)
+            self.assertIn("Model 1 has a zero portion", graft.stdout)
+            self.assertIn("only supplies the weights the others lack", graft.stdout)
             for extra, message in (
                 (["--weight", "0.3"], "--weight is for two models"),
                 (["--weights", "1,2"], "3 weights"),
