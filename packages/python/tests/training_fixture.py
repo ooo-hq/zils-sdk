@@ -56,6 +56,7 @@ def training_server():
         artifacts = {}
         download_mode = None
         returned_model = None
+        submit_error = None  # (status, body) for POST /v1/jobs/<id>/submit
 
         def grant(self, job_id, name, upload=True):
             bucket = "fez-training-data" if upload else "fez-training-models"
@@ -162,6 +163,8 @@ def training_server():
             if action == "uploads":
                 return self.reply(200, fixture.uploads(job))
             if action == "submit":
+                if fixture.submit_error:
+                    return self.reply(*fixture.submit_error)
                 job["status"] = "validating"
             if action == "cancel":
                 job["status"] = "failed"
