@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.9 — 2026-11-01
+
+- `zils` on its own prints the Zils wordmark and the help (it used to exit
+  asking for a command); `zils --help` and `-h` show the wordmark too. Other
+  commands stay quiet, and the wordmark is plain text when output is not a
+  terminal or `NO_COLOR` is set.
+- Includes 0.4.8 (miner commands run `zils-miner`), which was released on
+  GitHub but not published to npm.
+- The TypeScript SDK is versioned alongside the CLI; its runtime is unchanged.
+
 ## 0.4.8 — 2026-11-01
 
 - One `zils` for customers and miners. The miner commands (`setup`, `doctor`,
