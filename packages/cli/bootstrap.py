@@ -83,6 +83,23 @@ def install(python, wheel):
     )
 
 
+def create_runtime(environment):
+    """`python -m venv`. Debian and Ubuntu ship python3 without ensurepip, so this is the step
+    that fails on a fresh box; say which package fixes it instead of a bare exit status."""
+    try:
+        subprocess.run(
+            [sys.executable, "-I", "-m", "venv", str(environment)],
+            stdout=sys.stderr,
+            check=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError(
+            f"{sys.executable} cannot create a virtual environment (python3 -m venv failed). On"
+            " Debian or Ubuntu run: sudo apt install python3-venv (or python3.X-venv for your"
+            " Python), then retry"
+        ) from error
+
+
 def runtime():
     package = Path(__file__).resolve().parent
     version = json.loads((package / "package.json").read_text())["version"]
@@ -110,11 +127,7 @@ def runtime():
             ready.unlink(missing_ok=True)
             if environment.exists():
                 shutil.rmtree(environment)
-            subprocess.run(
-                [sys.executable, "-I", "-m", "venv", str(environment)],
-                stdout=sys.stderr,
-                check=True,
-            )
+            create_runtime(environment)
             install(python, wheel)
             ready.write_text(digest + "\n")
     return python

@@ -58,6 +58,31 @@ class BootstrapInstallTests(unittest.TestCase):
             self.install(core_code=1)
 
 
+class CreateRuntimeTests(unittest.TestCase):
+    def test_a_missing_venv_module_names_the_package_to_install(self):
+        # Debian/Ubuntu ship python3 without ensurepip; `python -m venv` then exits 1 and the
+        # bare CalledProcessError told users nothing. Name the fix.
+        def run(command, **kwargs):
+            raise subprocess.CalledProcessError(1, command)
+
+        with patch.object(bootstrap.subprocess, "run", run):
+            with self.assertRaises(RuntimeError) as caught:
+                bootstrap.create_runtime(Path("/tmp/zils-runtime"))
+        self.assertIn("python3 -m venv", str(caught.exception))
+        self.assertIn("apt install python3-venv", str(caught.exception))
+
+    def test_a_working_venv_module_is_used_as_is(self):
+        calls = []
+
+        def run(command, **kwargs):
+            calls.append(command)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with patch.object(bootstrap.subprocess, "run", run):
+            bootstrap.create_runtime(Path("/tmp/zils-runtime"))
+        self.assertEqual(calls[0][1:4], ["-I", "-m", "venv"])
+
+
 class MergeUnavailableTests(unittest.TestCase):
     def test_zils_merge_explains_how_to_get_its_dependencies(self):
         args = argparse.Namespace(
