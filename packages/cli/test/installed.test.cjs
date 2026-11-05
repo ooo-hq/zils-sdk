@@ -43,6 +43,15 @@ test('installed CLI bootstraps once, preserves stdin/JSON/exit codes, and reuses
   assert.equal(warm.code, 0, warm.stderr);
   assert.equal(warm.stderr, '');
 
+  // `npx @zils/cli mcp` is the one-line agent setup: stdout must carry only MCP messages.
+  const initialize = { jsonrpc: '2.0', id: 1, method: 'initialize',
+    params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '0' } } };
+  const mcp = await run(['mcp'], env, JSON.stringify(initialize) + '\n');
+  assert.equal(mcp.code, 0, mcp.stderr);
+  const reply = JSON.parse(mcp.stdout.trim().split('\n')[0]);
+  assert.equal(reply.id, 1);
+  assert.equal(reply.result.serverInfo.name, 'Zils');
+
   const calls = [];
   const server = createServer(async (req, res) => {
     let text = ''; for await (const chunk of req) text += chunk;

@@ -66,16 +66,17 @@ def pip_install(python, target, **options):
 
 
 def install(python, wheel):
-    """The CLI must install; `zils merge`'s numpy is best effort, since a new Python can lack a
-    binary build of it, and that must not block other commands."""
+    """The CLI must install; `zils merge`'s numpy and `zils mcp`'s MCP library are best effort,
+    since a new Python can lack a binary build of them, and that must not block other commands."""
     pip_install(python, str(wheel), stdout=sys.stderr, check=True)
-    if pip_install(python, f"{wheel}[merge]", capture_output=True, text=True).returncode:
-        version = "%d.%d" % sys.version_info[:2]
-        print(
-            f"zils merge is unavailable on Python {version}: its dependencies have no build for it yet."
-            " Every other command works.",
-            file=sys.stderr,
-        )
+    for extra in ("merge", "mcp"):
+        if pip_install(python, f"{wheel}[{extra}]", capture_output=True, text=True).returncode:
+            version = "%d.%d" % sys.version_info[:2]
+            print(
+                f"zils {extra} is unavailable on Python {version}: its dependencies have no build for it yet."
+                " Every other command works.",
+                file=sys.stderr,
+            )
     subprocess.run(
         [str(python), "-I", "-c", "import zils_sdk; from zils_sdk.cli import main"],
         stdout=sys.stderr,
