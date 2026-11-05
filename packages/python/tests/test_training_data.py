@@ -37,6 +37,26 @@ class TrainingDataTests(unittest.TestCase):
     def prepare(self):
         return training_data.prepare(self.files, self.root / "snapshots")
 
+    def test_cost_ceiling_prices_every_train_prompt_at_the_token_cap(self):
+        self.assertEqual(
+            training_data.cost_ceiling(2),
+            {"train_cases": 2, "max_training_tokens": 16384, "ceiling_usd": 2.0},
+        )
+        self.assertEqual(training_data.cost_ceiling(2000)["max_training_tokens"], 16_384_000)
+        self.assertEqual(training_data.cost_ceiling(2000)["ceiling_usd"], 3.28)
+
+    def test_check_validates_without_keeping_a_snapshot(self):
+        result = training_data.check(self.files)
+        self.assertEqual(
+            {split: info["count"] for split, info in result["files"].items()},
+            {"train": 2, "calibration": 2, "test": 2},
+        )
+        self.assertEqual(result["ceiling_usd"], 2.0)
+        self.assertNotIn("path", json.dumps(result))
+        self.files["test"].write_text("private-invalid-json")
+        with self.assertRaisesRegex(ValueError, "Invalid text dataset case"):
+            training_data.check(self.files)
+
     def test_snapshots_are_private_and_preserve_exact_bytes(self):
         original = self.files["train"].read_bytes()
         result = self.prepare()

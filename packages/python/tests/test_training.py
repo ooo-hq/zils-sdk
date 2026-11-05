@@ -63,6 +63,18 @@ class TrainingTests(unittest.TestCase):
             self.assertNotIn("private-grant", receipt + output.getvalue() + json.dumps(result))
             self.assertEqual(list((self.receipts / "snapshots").glob("*")), [])
 
+    def test_cost_limit_below_the_ceiling_refuses_before_any_request(self):
+        policy = {"min_accuracy": 0.8, "min_brier_improvement": 0.01}
+        with training_server() as fixture, redirect_stderr(io.StringIO()):
+            client = self.client(fixture)
+            for limit in (1.99, 0, -1, float("nan"), True, "2"):
+                with self.assertRaisesRegex(ValueError, r"\$2\.00|cost limit"):
+                    client.submit("routing", self.files, policy, True, max_cost_usd=limit)
+            self.assertEqual(fixture.calls, [])
+            self.assertEqual(list((self.receipts / "snapshots").glob("*")), [])
+            result = client.submit("routing", self.files, policy, True, max_cost_usd=2)
+            self.assertEqual(result["status"], "validating")
+
     def test_out_of_credit_at_submit_says_to_add_credit_and_resume(self):
         said = "Add credit or resolve your payment issue before submitting this job."
         with training_server() as fixture, redirect_stderr(io.StringIO()):

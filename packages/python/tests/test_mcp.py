@@ -10,6 +10,18 @@ from pathlib import Path
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from sdk_helpers import QUESTIONS, api
+from test_training_data import datasets
+from training_fixture import training_server
+
+TOOLS = {
+    "decide",
+    "list_models",
+    "train_check",
+    "train_submit",
+    "train_list",
+    "train_status",
+    "train_cancel",
+}
 
 
 class McpTests(unittest.TestCase):
@@ -39,7 +51,7 @@ class McpTests(unittest.TestCase):
 
             async def check(session):
                 tools = (await session.list_tools()).tools
-                self.assertEqual({t.name for t in tools}, {"decide", "list_models"})
+                self.assertEqual({t.name for t in tools}, TOOLS)
                 decision = next(t for t in tools if t.name == "decide")
                 self.assertFalse(decision.inputSchema["additionalProperties"])
                 models = await session.call_tool("list_models", {})
@@ -71,7 +83,7 @@ class McpTests(unittest.TestCase):
             env = self.env(directory)
 
             async def check(session):
-                self.assertEqual(len((await session.list_tools()).tools), 2)
+                self.assertEqual(len((await session.list_tools()).tools), len(TOOLS))
                 missing = await session.call_tool("list_models", {})
                 self.assertTrue(missing.isError)
                 self.assertIn("zils login --api-key", missing.content[0].text)
@@ -81,6 +93,69 @@ class McpTests(unittest.TestCase):
                 result = await session.call_tool("list_models", {})
                 self.assertFalse(result.isError)
 
+            self.run_session(env, check)
+
+    def signin(self, env, fixture):
+        session = {**fixture.session, "refresh_token": "fixture-refresh", "expires_at": 2**40}
+        session["config"] = {
+            **session["config"],
+            "version": 1,
+            "oauth": {
+                "issuer": fixture.url + "/auth/v1",
+                "client_id": "11111111-1111-4111-8111-111111111111",
+                "redirect_uri": "http://127.0.0.1:43187/callback",
+            },
+        }
+        Path(env["ZILS_CONFIG_PATH"]).with_suffix(".account.json").write_text(json.dumps(session))
+        env["ZILS_TRAINING_URL"] = fixture.url
+
+    def test_training_tools_check_cost_then_submit_list_status_and_cancel(self):
+        with tempfile.TemporaryDirectory() as directory, training_server() as fixture:
+            env = self.env(directory)
+            files = {split: str(path) for split, path in datasets(Path(directory)).items()}
+            submit = {
+                "name": "routing",
+                **files,
+                "min_accuracy": 0.8,
+                "min_brier_improvement": 0.01,
+                "allow_training_data_export": True,
+            }
+
+            async def check(session):
+                tools = {t.name: t for t in (await session.list_tools()).tools}
+                self.assertIn("max_cost_usd", tools["train_submit"].inputSchema["required"])
+                self.assertTrue(tools["train_cancel"].annotations.destructiveHint)
+                self.assertTrue(tools["train_check"].annotations.readOnlyHint)
+                checked = await session.call_tool("train_check", files)
+                self.assertFalse(checked.isError, checked.content)
+                self.assertEqual(checked.structuredContent["ceiling_usd"], 2.0)
+                missing = await session.call_tool("train_list", {})
+                self.assertTrue(missing.isError)
+                self.assertIn("zils login", missing.content[0].text)
+                unbudgeted = await session.call_tool("train_submit", submit)
+                self.assertTrue(unbudgeted.isError)
+                self.assertEqual(fixture.calls, [])
+                self.signin(env, fixture)
+                over = await session.call_tool("train_submit", {**submit, "max_cost_usd": 1})
+                self.assertTrue(over.isError)
+                self.assertIn("$2.00", over.content[0].text)
+                self.assertEqual(fixture.calls, [])
+                submitted = await session.call_tool("train_submit", {**submit, "max_cost_usd": 2})
+                self.assertFalse(submitted.isError, submitted.content)
+                job_id = submitted.structuredContent["id"]
+                listed = await session.call_tool("train_list", {})
+                self.assertIn(job_id, json.dumps(listed.structuredContent))
+                status = await session.call_tool("train_status", {"job_id": job_id})
+                self.assertEqual(status.structuredContent["id"], job_id)
+                cancelled = await session.call_tool("train_cancel", {"job_id": job_id})
+                self.assertTrue(cancelled.structuredContent["cancelled"])
+                bad = await session.call_tool("train_status", {"job_id": "../private-secret"})
+                self.assertTrue(bad.isError)
+                text = json.dumps([c.model_dump() for c in submitted.content + status.content])
+                self.assertNotIn("account-token", text)
+                self.assertNotIn("private-grant", text)
+
+            env["ZILS_TRAINING_URL"] = fixture.url
             self.run_session(env, check)
 
 

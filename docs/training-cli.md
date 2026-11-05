@@ -69,8 +69,14 @@ The export flag explicitly permits training data to be copied to approved worker
 Both quality thresholds are required; acceptance may produce no qualifying model.
 Before creation, the CLI prints the active training account, service, files,
 selected immutable model, thresholds and export consent to stderr. Submission uses that account's training
-allowance/credit under the service's rules; the CLI does not estimate a price.
-JSON results remain on stdout.
+allowance/credit under the service's rules. JSON results remain on stdout.
+
+Add `--max-cost 5` to refuse the job, before anything is sent, when it could
+cost more than $5. The service bills each train-split prompt token once at
+$0.20 per million, never below $2. The CLI cannot count tokens without the
+model's tokenizer, so it prices every train case at the 8,192-token cap: the
+ceiling is `max($2, train cases × 8,192 × $0.20 / 1M)`, and the real charge is
+usually far lower.
 
 Each UTF-8 JSONL case requires `id`, `group_id`, `family`, `state`, `question`, and
 `label`. Labels are strings: `"false"`/`"true"` for `noul`, a criterion key for
