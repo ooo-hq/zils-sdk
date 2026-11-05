@@ -10,6 +10,10 @@
 - `zils train submit --max-cost <USD>` does the same check in the terminal.
   The ceiling prices every train case at the 8,192-token cap:
   `max($2, cases × 8,192 × $0.20 / 1M)`.
+- One-line agent setup: `zils mcp` runs the MCP server, and the npm CLI's
+  private runtime now installs the MCP library (best effort, like `zils
+  merge`). Add it with `claude mcp add zils -- npx -y @zils/cli mcp` or the
+  Codex equivalent; no source checkout or separate Python install.
 
 ## 0.4.11 — 2026-11-01
 

@@ -360,23 +360,31 @@ There is no top-k shortcut, new model training, CLI command, or MCP tool.
 
 ## MCP
 
-After installing the Python MCP extra, run `zils login --api-key` in the same user account
-as your agent. Configure an MCP host to launch the installed `zils-mcp` executable
-over stdio. Use the absolute path printed by `command -v zils-mcp` (Windows:
-`where.exe zils-mcp`). A host configuration accepting `mcpServers` looks like:
+With Node.js 20+ and Python 3.11+, add the server to your agent in one line;
+nothing else needs installing:
+
+```sh
+claude mcp add zils -- npx -y @zils/cli mcp      # Claude Code
+codex mcp add zils -- npx -y @zils/cli mcp       # Codex
+```
+
+A host configuration accepting `mcpServers` looks like:
 
 ```json
 {
   "mcpServers": {
-    "zils": {
-      "command": "/absolute/path/to/.venv-tools/bin/zils-mcp"
-    }
+    "zils": { "command": "npx", "args": ["-y", "@zils/cli", "mcp"] }
   }
 }
 ```
 
-Replace the example path. For Codex, register that executable with
-`codex mcp add zils -- /absolute/path/to/.venv-tools/bin/zils-mcp`.
+Then sign in, in the same user account as your agent: `npx @zils/cli login --api-key`
+for decisions and `npx @zils/cli login` for training. The first start sets up a
+private Python environment and can take a minute; run `npx -y @zils/cli --version`
+once beforehand if your agent host times out slow servers.
+
+From a source checkout, `zils mcp` (or the `zils-mcp` executable) starts the same
+server once the Python MCP extra is installed.
 The MCP server exposes `list_models` and `decide` (inference key), plus
 training tools that use the browser account login from `zils login`:
 

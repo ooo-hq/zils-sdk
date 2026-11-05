@@ -18,12 +18,18 @@ spec.loader.exec_module(bootstrap)
 PYTHON, WHEEL = Path("/runtime/bin/python"), Path("/vendor/zils_sdk-0-py3-none-any.whl")
 
 
-def fake_pip(merge_code=0, core_code=0):
+def fake_pip(merge_code=0, core_code=0, mcp_code=0):
     calls = []
 
     def run(command, **kwargs):
         calls.append(command)
-        code = merge_code if command[-1].endswith("[merge]") else core_code
+        code = (
+            merge_code
+            if command[-1].endswith("[merge]")
+            else mcp_code
+            if command[-1].endswith("[mcp]")
+            else core_code
+        )
         if code and kwargs.get("check"):
             raise subprocess.CalledProcessError(code, command)
         return subprocess.CompletedProcess(command, code, "", "pip error text")
@@ -39,11 +45,21 @@ class BootstrapInstallTests(unittest.TestCase):
             bootstrap.install(PYTHON, WHEEL)
         return calls, stderr.getvalue()
 
-    def test_core_installs_first_and_the_merge_extra_after(self):
+    def test_core_installs_first_and_the_merge_and_mcp_extras_after(self):
         calls, stderr = self.install()
-        self.assertEqual([c[-1] for c in calls[:2]], [str(WHEEL), f"{WHEEL}[merge]"])
-        self.assertTrue(all("--only-binary=:all:" in c for c in calls[:2]))
+        self.assertEqual(
+            [c[-1] for c in calls[:3]], [str(WHEEL), f"{WHEEL}[merge]", f"{WHEEL}[mcp]"]
+        )
+        self.assertTrue(all("--only-binary=:all:" in c for c in calls[:3]))
         self.assertEqual(stderr, "")
+
+    def test_a_failed_mcp_extra_leaves_every_other_command_working(self):
+        calls, stderr = self.install(mcp_code=1)
+        self.assertEqual(calls[-1][-1], "import zils_sdk; from zils_sdk.cli import main")
+        version = "%d.%d" % sys.version_info[:2]
+        self.assertIn(f"zils mcp is unavailable on Python {version}", stderr)
+        self.assertNotIn("zils merge is unavailable", stderr)
+        self.assertNotIn("pip error text", stderr)
 
     def test_a_failed_merge_extra_leaves_every_other_command_working(self):
         calls, stderr = self.install(merge_code=1)

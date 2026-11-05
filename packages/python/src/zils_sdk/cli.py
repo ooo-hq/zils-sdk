@@ -95,6 +95,7 @@ def parser() -> argparse.ArgumentParser:
     source.add_argument("--state", help="Text or JSON state: inline, @file, or - for stdin")
     decide.add_argument("--questions", help="JSON questions: inline, @file, or - for stdin")
     decide.add_argument("--model", help="Model name; defaults to ZILS_DEFAULT_MODEL or zils-shared")
+    commands.add_parser("mcp", help="Run the Zils MCP server over stdio for an agent")
     training_cli.add_parser(commands)
     fit_cli.add_parser(commands)
     merge_cli.add_parser(commands)
@@ -161,6 +162,12 @@ def run(args) -> None:
         return
     if args.command == "merge":
         merge_cli.run(args)
+        return
+    if args.command == "mcp":
+        from .mcp import main as serve
+
+        if serve():
+            raise SystemExit(2)
         return
     if args.command == "logout":
         account.logout()

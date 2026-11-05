@@ -31,13 +31,11 @@ class McpTests(unittest.TestCase):
             "ZILS_CONFIG_PATH": str(Path(directory) / "config.json"),
         }
 
-    def run_session(self, env, work):
+    def run_session(self, env, work, args=("-m", "zils_sdk.mcp")):
         self.assertIsNotNone(importlib.util.find_spec("zils_sdk.mcp"), "MCP entry point is missing")
 
         async def run():
-            params = StdioServerParameters(
-                command=sys.executable, args=["-m", "zils_sdk.mcp"], env=env
-            )
+            params = StdioServerParameters(command=sys.executable, args=list(args), env=env)
             async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
                 await session.initialize()
                 await work(session)
@@ -77,6 +75,14 @@ class McpTests(unittest.TestCase):
                 self.assertEqual(len(service.calls), count + 1)
 
             self.run_session(env, check)
+
+    def test_zils_mcp_command_serves_the_same_tools(self):
+        with tempfile.TemporaryDirectory() as directory:
+
+            async def check(session):
+                self.assertEqual({t.name for t in (await session.list_tools()).tools}, TOOLS)
+
+            self.run_session(self.env(directory), check, ("-m", "zils_sdk.cli", "mcp"))
 
     def test_discovery_without_credentials_then_login_without_restart(self):
         with tempfile.TemporaryDirectory() as directory, api() as service:

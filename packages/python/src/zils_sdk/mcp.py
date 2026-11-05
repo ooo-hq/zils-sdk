@@ -171,7 +171,8 @@ def main() -> int:
         if error.name != "mcp":
             raise
         print(
-            "From the zils-sdk repository root, install the MCP extra: "
+            "The MCP library is not installed for this Python. With the npm CLI, point "
+            "ZILS_PYTHON at another Python 3.11+ and retry. From the zils-sdk repository root: "
             'python -m pip install "./packages/python[mcp]".',
             file=sys.stderr,
         )

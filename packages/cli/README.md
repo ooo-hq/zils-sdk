@@ -24,6 +24,17 @@ private cache. It needs internet access, takes longer than subsequent starts,
 and does not modify your system Python. npm installation itself runs no setup
 scripts. Set `ZILS_PYTHON` to an executable path if Python is not on your PATH.
 
+## Use from an agent (MCP)
+
+```sh
+claude mcp add zils -- npx -y @zils/cli mcp      # Claude Code
+codex mcp add zils -- npx -y @zils/cli mcp       # Codex
+```
+
+Other hosts: run `npx` with the arguments `-y @zils/cli mcp` over stdio. The
+agent can answer decisions and check, submit and follow training jobs, with a
+required cost limit on every submission.
+
 ## Commands
 
 ```sh
