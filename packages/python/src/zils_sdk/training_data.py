@@ -6,6 +6,7 @@ import math
 import os
 import re
 import shutil
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -15,6 +16,21 @@ from .account import identifier, origin
 SPLITS = ("train", "calibration", "test")
 MAX_SPLIT = 128 * 1024 * 1024
 MAX_CASE = 128 * 1024
+# The service bills each train-split prompt token once, at $0.20 per million, never below $2.
+# No d3 profile admits a prompt above 8,192 tokens, so cases × 8,192 bounds the charge.
+MAX_PROMPT_TOKENS = 8192
+NANOS_PER_TOKEN = 200
+MIN_PRICE_NANOS = 2_000_000_000
+
+
+def cost_ceiling(train_cases: int) -> dict:
+    tokens = train_cases * MAX_PROMPT_TOKENS
+    nanos = max(MIN_PRICE_NANOS, tokens * NANOS_PER_TOKEN)
+    return {
+        "train_cases": train_cases,
+        "max_training_tokens": tokens,
+        "ceiling_usd": math.ceil(nanos / 10_000_000) / 100,
+    }
 
 
 def validate_policy(name: str, accuracy: float, improvement: float, consent: bool) -> dict:
@@ -139,6 +155,17 @@ def prepare(files: dict[str, Path], root: Path) -> dict:
     except BaseException:
         shutil.rmtree(directory)
         raise
+
+
+def check(files: dict[str, Path]) -> dict:
+    """Run every admission check and price the ceiling; keeps no snapshot or file path."""
+    with tempfile.TemporaryDirectory() as root:
+        prepared = prepare(files, Path(root))
+    counts = {
+        split: {"count": info["count"], "size": info["size"]}
+        for split, info in prepared["files"].items()
+    }
+    return {"files": counts, **cost_ceiling(counts["train"]["count"])}
 
 
 def load_receipt(root: Path, job_id: str, account_id: str, base_url: str) -> dict:

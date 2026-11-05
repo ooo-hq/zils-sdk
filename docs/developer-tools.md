@@ -377,9 +377,25 @@ over stdio. Use the absolute path printed by `command -v zils-mcp` (Windows:
 
 Replace the example path. For Codex, register that executable with
 `codex mcp add zils -- /absolute/path/to/.venv-tools/bin/zils-mcp`.
-The MCP server exposes only `list_models` and `decide`. It starts without a key
-so the agent can discover the tools; calls explain how to sign in. Login/key
-changes take effect on the next tool call without restarting the server.
+The MCP server exposes `list_models` and `decide` (inference key), plus
+training tools that use the browser account login from `zils login`:
+
+| Tool | What it does |
+|---|---|
+| `train_check` | Checks three JSONL splits locally and returns case counts and `ceiling_usd`, the most the job can cost. Sends nothing; needs no login. |
+| `train_submit` | Submits a paid training job. `max_cost_usd` is required; the tool refuses before sending anything when the ceiling is above it. |
+| `train_list` | Lists recent jobs and ready models. |
+| `train_status` | Shows one job's status, evaluation and API model id. |
+| `train_cancel` | Cancels a job; costs already incurred may remain. |
+
+The cost ceiling and data rules are the same as the CLI's; see
+[training](training-cli.md#submit-three-reviewed-splits). An agent should agree
+the cost limit with the user before calling `train_submit`, and should never
+retry an uncertain submission: check `train_list` first.
+
+The server starts without a key or login so the agent can discover the tools;
+calls explain how to sign in. Login/key changes take effect on the next tool
+call without restarting the server.
 Credentials come from the environment or shared file, never from tool arguments.
 Unknown tool arguments are rejected before sending a request.
 

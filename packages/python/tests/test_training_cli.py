@@ -117,6 +117,16 @@ class TrainingCliTests(unittest.TestCase):
             self.assertNotIn("private-invalid-json", result.stdout + result.stderr)
             self.assertEqual(fixture.calls, [])
 
+    def test_max_cost_below_the_ceiling_never_contacts_service(self):
+        with training_server() as fixture:
+            self.signin(fixture)
+            result = self.run_cli(*self.submit_args(), "--max-cost", "1.5")
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("$2.00", result.stderr)
+            self.assertEqual(fixture.calls, [])
+            result = self.run_cli(*self.submit_args(), "--max-cost", "2")
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_missing_account_is_clear_and_never_opens_browser(self):
         result = self.run_cli("train", "list")
         self.assertEqual(result.returncode, 2)

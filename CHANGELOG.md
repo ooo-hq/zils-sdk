@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- The MCP server can train. New tools: `train_check` (local split checks and
+  the most a job can cost), `train_submit`, `train_list`, `train_status` and
+  `train_cancel`. They use the browser account login from `zils login`, never
+  a key in tool arguments. `train_submit` requires `max_cost_usd` and refuses
+  before sending anything when the job could cost more.
+- `zils train submit --max-cost <USD>` does the same check in the terminal.
+  The ceiling prices every train case at the 8,192-token cap:
+  `max($2, cases × 8,192 × $0.20 / 1M)`.
+
 ## 0.4.11 — 2026-11-01
 
 - `zils train` explains running out of credit. When the service refuses to

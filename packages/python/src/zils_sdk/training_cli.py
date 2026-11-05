@@ -63,6 +63,11 @@ def add_parser(subparsers):
             command.add_argument("--min-accuracy", type=float, required=True)
             command.add_argument("--min-brier-improvement", type=float, required=True)
             command.add_argument(
+                "--max-cost",
+                type=float,
+                help="Refuse before sending if the job could cost more than this many US dollars",
+            )
+            command.add_argument(
                 "--allow-training-data-export",
                 action="store_true",
                 help="Permit training examples to be copied to approved workers",
@@ -144,6 +149,7 @@ def run(args):
                 pool=args.pool,
                 base_channel=args.base_channel,
                 model=args.model,
+                max_cost_usd=args.max_cost,
             )
             if action == "submit"
             else client.resume(args.job_id, files)

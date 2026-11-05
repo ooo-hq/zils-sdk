@@ -391,16 +391,41 @@ class TrainingClient:
         if directory.is_dir() and not directory.is_symlink():
             shutil.rmtree(directory)
 
-    def submit(self, name, files, policy, consent, *, pool=None, base_channel=None, model=None):
+    def submit(
+        self,
+        name,
+        files,
+        policy,
+        consent,
+        *,
+        pool=None,
+        base_channel=None,
+        model=None,
+        max_cost_usd=None,
+    ):
         if not isinstance(policy, dict) or set(policy) != {"min_accuracy", "min_brier_improvement"}:
             raise ValueError("Supply both training acceptance thresholds.")
         policy = training_data.validate_policy(
             name, policy["min_accuracy"], policy["min_brier_improvement"], consent
         )
+        if max_cost_usd is not None and (
+            type(max_cost_usd) not in (int, float)
+            or not math.isfinite(max_cost_usd)
+            or max_cost_usd <= 0
+        ):
+            raise ValueError("The cost limit must be a finite positive number of US dollars.")
         prepared = training_data.prepare(files, self.root / "snapshots")
         pending = self.root / ("pending-" + prepared["snapshot"] + ".json")
         retain = False
         try:
+            if max_cost_usd is not None:
+                ceiling = training_data.cost_ceiling(prepared["files"]["train"]["count"])
+                if ceiling["ceiling_usd"] > max_cost_usd:
+                    raise ValueError(
+                        f"Training these {ceiling['train_cases']} cases can cost up to "
+                        f"${ceiling['ceiling_usd']:.2f}, above the ${max_cost_usd:.2f} cost limit. "
+                        "Nothing was sent."
+                    )
             session = self._connect()
             selection = select_model(
                 self._request(session, "GET", "/v1/config"),
