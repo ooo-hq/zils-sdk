@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.13 — 2026-11-05
 
 - The MCP server can train. New tools: `train_check` (local split checks and
   the most a job can cost), `train_submit`, `train_list`, `train_status` and
