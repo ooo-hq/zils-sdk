@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.15 — 2026-11-08
 
 - The MCP server gains `train_guide`, a step-by-step walkthrough for agents
   training a model for the user: which columns to read, agreeing the pass bars
