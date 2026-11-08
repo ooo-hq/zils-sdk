@@ -126,11 +126,13 @@ class McpTests(unittest.TestCase):
                 "min_accuracy": 0.8,
                 "min_brier_improvement": 0.01,
                 "allow_training_data_export": True,
+                "tier": "private",  # agents must choose; this test covers the paid path
             }
 
             async def check(session):
                 tools = {t.name: t for t in (await session.list_tools()).tools}
                 self.assertIn("max_cost_usd", tools["train_submit"].inputSchema["required"])
+                self.assertIn("tier", tools["train_submit"].inputSchema["required"])
                 self.assertTrue(tools["train_cancel"].annotations.destructiveHint)
                 self.assertTrue(tools["train_check"].annotations.readOnlyHint)
                 checked = await session.call_tool("train_check", files)

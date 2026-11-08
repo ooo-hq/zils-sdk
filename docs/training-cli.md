@@ -98,7 +98,18 @@ Before creation, the CLI prints the active training account, service, files,
 selected immutable model, thresholds and export consent to stderr. Submission uses that account's training
 allowance/credit under the service's rules. JSON results remain on stdout.
 
-Add `--max-cost 5` to refuse the job, before anything is sent, when it could
+Choose who trains the job with `--tier`:
+
+- `--tier private` (the default when `--tier` is left out): paid, trained only
+  on Zils workers.
+- `--tier open`: free, trained by Zils network miners. They receive the
+  training split and must delete it within 7 days of the job finishing; Zils
+  cannot verify that they do. It also needs `--allow-open-tier-training`, your
+  permission to send the training split to them. If the service does not offer
+  the open tier yet, the CLI cancels the job before anything is uploaded or
+  charged instead of training it as private.
+
+Add `--max-cost 5` to refuse a private job, before anything is sent, when it could
 cost more than $5. The service bills each train-split prompt token once at
 $0.20 per million, never below $2. The CLI cannot count tokens without the
 model's tokenizer, so it prices every train case at the 8,192-token cap: the

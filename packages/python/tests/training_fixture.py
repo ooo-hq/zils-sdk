@@ -57,6 +57,7 @@ def training_server():
         download_mode = None
         returned_model = None
         submit_error = None  # (status, body) for POST /v1/jobs/<id>/submit
+        knows_tier = True  # False: a service from before zils-platform#90, which ignores the tier
 
         def grant(self, job_id, name, upload=True):
             bucket = "fez-training-data" if upload else "fez-training-models"
@@ -117,6 +118,19 @@ def training_server():
                 return self.reply(200, {"jobs": list(fixture.jobs.values()), "models": []})
             if self.command == "POST" and path == "/v1/jobs":
                 body = json.loads(raw)
+                if (
+                    fixture.knows_tier
+                ):  # as zils-platform#90: private unless asked, open needs miner consent
+                    tier = body.get("tier", "private")
+                    if tier not in ("open", "private"):
+                        return self.reply(400, {"error": "Use tier 'open' or 'private'."})
+                    if tier == "open" and body.get("allow_open_tier_training") is not True:
+                        return self.reply(
+                            400,
+                            {
+                                "error": "Open-tier jobs need permission to share training data with network miners."
+                            },
+                        )
                 job_id = str(uuid.uuid4())
                 job = fixture.jobs[job_id] = {
                     "id": job_id,
@@ -125,6 +139,7 @@ def training_server():
                     "model": fixture.returned_model or body["model"],
                     "workflow": None,
                     "result": None,
+                    **({"tier": tier} if fixture.knows_tier else {}),
                 }
                 if fixture.drop_create:
                     self.connection.shutdown(socket.SHUT_RDWR)
