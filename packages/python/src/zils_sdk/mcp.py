@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from typing import Any, Literal
 
-from . import AsyncZilsClient, ZilsError, training_data, training_prepare
+from . import AsyncZilsClient, ZilsError, training_data, training_guide, training_prepare
 from ._input import check_request, error_message
 from ._training_http import TrainingError
 from .account import identifier
@@ -48,9 +48,8 @@ def build_server():
         "Zils",
         instructions="Call list_models to discover available Zils models. Use decide for typed "
         "yes/no, choice, and score questions. Configure an inference key with zils login --api-key. "
-        "Training tools need the user's browser account login (zils login). Turn the user's file into "
-        "splits with train_prepare, then run train_check and "
-        "agree a cost limit with the user before train_submit. Decisions and training may consume "
+        "Before training a model, read train_guide: it lists what to agree with the user. Training tools "
+        "need the user's browser account login (zils login). Decisions and training may consume "
         "paid credit. No automatic retries.",
         log_level="WARNING",
     )
@@ -104,6 +103,11 @@ def build_server():
     def splits(train, calibration, test):
         return {"train": Path(train), "calibration": Path(calibration), "test": Path(test)}
 
+    @server.tool(annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True))
+    async def train_guide() -> dict[str, str]:
+        """How to train a Zils model for the user, step by step. Read it before the other train_ tools. Local."""
+        return {"guide": training_guide.GUIDE}
+
     @server.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     async def train_prepare(
         input: str,
@@ -120,6 +124,7 @@ def build_server():
         and anything only known after the decision (for example a resolution time). group names the case each
         row belongs to, so related rows stay in one split. Writes train/calibration/test JSONL to out (never
         overwriting) and returns the counts, the answers per split, the cost ceiling and the submit command.
+        leaks lists columns that give the answer away; without read they are left out, with read they are kept.
         """
         return await training(
             lambda: training_prepare.prepare(
@@ -145,9 +150,9 @@ def build_server():
         test: str,
         min_accuracy: float,
         min_brier_improvement: float,
-        max_cost_usd: float,
         allow_training_data_export: bool,
         tier: Literal["open", "private"],
+        max_cost_usd: float | None = None,
         allow_open_tier_training: bool = False,
         pool: str | None = None,
         base_channel: str | None = None,
@@ -157,12 +162,16 @@ def build_server():
         tier: ask the user before choosing. "private" is paid and trained only on Zils workers.
         "open" is free and trained by Zils network miners, who receive the training split and must
         delete it within 7 days; it also needs allow_open_tier_training true, the user's permission.
-        For private jobs, refuses before sending anything when train_check's ceiling_usd is above
-        max_cost_usd; agree that limit with the user first. min_accuracy (0–1) and
-        min_brier_improvement (0–2) are the bars the trained adapter must clear on the test split.
-        allow_training_data_export must be true. Never retry an uncertain submission; check
-        train_list first.
+        Private jobs need max_cost_usd, agreed with the user; the tool refuses before sending anything when
+        train_check's ceiling_usd is above it. Open jobs need no cost limit. min_accuracy (0–1) and
+        min_brier_improvement (0–2) are the pass bars the trained adapter must clear on the test split:
+        propose them and agree them with the user before submitting. allow_training_data_export must be
+        true. Never retry an uncertain submission; check train_list first.
         """
+        if tier == "private" and max_cost_usd is None:
+            raise ToolError(
+                "Private training is paid: agree a cost limit (max_cost_usd) with the user. Nothing was sent."
+            )
         return await training(
             lambda: TrainingClient().submit(
                 name,

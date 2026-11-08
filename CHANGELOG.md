@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- The MCP server gains `train_guide`, a step-by-step walkthrough for agents
+  training a model for the user: which columns to read, agreeing the pass bars
+  and the open or private tier with the user, how to tell a run has finished,
+  and calling the model with an inference key. The server tells agents to read
+  it first.
+- `zils train prepare` (and `train_prepare`) lists columns that give the answer
+  away, like the agent who handled a ticket, under `leaks`. Without `--read`
+  they are left out; named in `--read`, they are kept and still listed.
+- Open-tier jobs need no cost limit: `--max-cost` and `max_cost_usd` are
+  ignored for them, including 0. In MCP `max_cost_usd` is now optional, and
+  `train_submit` refuses a private job without one before sending anything.
+
 ## 0.4.14 — 2026-11-08
 
 - `zils train prepare` turns a file of past examples into the three training

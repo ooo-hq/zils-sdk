@@ -130,6 +130,42 @@ class PrepareTests(unittest.TestCase):
         )  # ticket_id is an id; team is the answer; case groups
         self.assertIn("ticket_id", result["skipped"])
 
+    def test_a_column_that_gives_the_answer_away_is_left_out_unless_named(self):
+        # Who handled a ticket is only known after the team was chosen, and gives the team away.
+        agents = {"Billing": ["Ana", "Bo"], "Tech support": ["Raj", "Kim"], "Sales": ["Lee", "Max"]}
+        rows = [{**row, "agent": agents[row["team"]][i % 2]} for i, row in enumerate(tickets())]
+        source = write_csv(self.root / "leaky.csv", rows)
+        result = self.prepare(source, group="case")
+        self.assertEqual(result["read"], ["channel", "message"])
+        self.assertIn("agent", result["skipped"])
+        self.assertEqual([leak["column"] for leak in result["leaks"]], ["agent"])
+        self.assertIn("gives away", result["leaks"][0]["reason"])
+        # Named on purpose, it is read, with the warning kept.
+        named = self.prepare(
+            source, group="case", read=["message", "agent"], out=self.root / "named"
+        )
+        self.assertIn("agent", named["read"])
+        self.assertEqual([leak["column"] for leak in named["leaks"]], ["agent"])
+
+    def test_people_see_the_leak_warning_too(self):
+        from zils_sdk.training_cli import render_prepared
+
+        agents = {"Billing": ["Ana", "Bo"], "Tech support": ["Raj", "Kim"], "Sales": ["Lee", "Max"]}
+        rows = [{**row, "agent": agents[row["team"]][i % 2]} for i, row in enumerate(tickets())]
+        result = self.prepare(write_csv(self.root / "leaky.csv", rows), group="case")
+        self.assertIn("agent", render_prepared(result).split("Reads:")[1])
+        self.assertIn("gives away", render_prepared(result))
+
+    def test_ordinary_columns_are_not_called_leaks(self):
+        # A common answer is not a leak: most tickets go to Billing, and channel says little about the team.
+        rows = [
+            {**row, "team": "Billing" if i % 10 else row["team"]}
+            for i, row in enumerate(tickets(90))
+        ]
+        source = write_csv(self.root / "skewed.csv", rows)
+        self.assertEqual(self.prepare(source, group="case")["leaks"], [])
+        self.assertEqual(self.prepare(group="case", out=self.root / "plain")["leaks"], [])
+
     def test_tsv_json_and_jsonl_inputs(self):
         rows = tickets()
         sources = [

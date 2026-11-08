@@ -390,9 +390,10 @@ training tools that use the browser account login from `zils login`:
 
 | Tool | What it does |
 |---|---|
-| `train_prepare` | Turns the user's CSV, TSV, JSON or JSONL file into the three splits, as `zils train prepare` does. Local; needs no login. |
+| `train_guide` | Returns the step-by-step training walkthrough for an agent: which columns to read, agreeing the pass bars and the tier with the user, how to tell a run has finished, and calling the model with an inference key. Local; needs no login. |
+| `train_prepare` | Turns the user's CSV, TSV, JSON or JSONL file into the three splits, as `zils train prepare` does, and lists columns that give the answer away under `leaks`. Local; needs no login. |
 | `train_check` | Checks three JSONL splits locally and returns case counts and `ceiling_usd`, the most the job can cost. Sends nothing; needs no login. |
-| `train_submit` | Submits a training job. `tier` is required, so the agent asks the user: `private` is paid (`max_cost_usd` applies; the tool refuses before sending anything when the ceiling is above it), `open` is free and trained by network miners and needs `allow_open_tier_training`. |
+| `train_submit` | Submits a training job. `tier` is required, so the agent asks the user: `private` is paid and needs `max_cost_usd` (the tool refuses before sending anything without it, or when the ceiling is above it), `open` is free and trained by network miners and needs `allow_open_tier_training`. |
 | `train_list` | Lists recent jobs and ready models. |
 | `train_status` | Shows one job's status, evaluation and API model id. |
 | `train_cancel` | Cancels a job; costs already incurred may remain. |
