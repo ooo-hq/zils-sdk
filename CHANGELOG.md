@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- `zils train submit --pool d3-mini` (and `train_submit` with that pool) works
+  on a training service without a model-pools catalog. The pool is implied
+  there, so it is no longer sent; such a service refused it, and the job
+  failed with no reason given.
+- When the training service refuses a new job, "Job creation could not be
+  verified" now keeps the SDK's own explanation: the HTTP status and what to
+  do (sign in again, add credit). The service's own error text is still never
+  shown.
+
 ## 0.4.15 — 2026-11-08
 
 - The MCP server gains `train_guide`, a step-by-step walkthrough for agents

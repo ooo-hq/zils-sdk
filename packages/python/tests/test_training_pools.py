@@ -161,3 +161,32 @@ class PoolDownloadTests(unittest.TestCase):
                 training.verify_checkpoint(
                     self.out, bad, records, "33333333-3333-4333-8333-333333333333"
                 )
+
+
+class ServiceWithoutPoolsTests(unittest.TestCase):
+    setUp = workflows.TrainingTests.setUp
+    client = workflows.TrainingTests.client
+    POLICY = {"min_accuracy": 0.8, "min_brier_improvement": 0.01}
+
+    def test_the_default_pool_works_on_a_service_without_pools(self):
+        # training.zils.ai on 8 Nov 2026: no pools catalog, so naming d3-mini (the only choice) was refused.
+        with training_server() as fixture:
+            self.assertNotIn("pools", fixture.session["config"])
+            result = self.client(fixture).submit(
+                "mini", self.files, self.POLICY, True, pool="d3-mini"
+            )
+            request = json.loads(next(c[3] for c in fixture.calls if c[:2] == ("POST", "/v1/jobs")))
+            self.assertNotIn("pool", request)
+            self.assertEqual(request["model"], MODEL)
+            self.assertIn(result["id"], fixture.jobs)
+
+    def test_a_refused_create_keeps_the_reason_the_sdk_knows(self):
+        for status, expected in ((400, "HTTP 400"), (401, "Run zils login"), (402, "Add credit")):
+            with training_server() as fixture:
+                fixture.create_error = (status, {"error": "remote text the SDK never shows"})
+                with self.assertRaises(TrainingError) as raised:
+                    self.client(fixture).submit("mini", self.files, self.POLICY, True)
+                message = str(raised.exception)
+                self.assertIn(expected, message)
+                self.assertIn("Run zils train list before submitting again", message)
+                self.assertNotIn("remote text", message)
