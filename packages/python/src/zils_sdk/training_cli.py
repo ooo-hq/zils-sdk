@@ -7,6 +7,7 @@ import sys
 import time
 from pathlib import Path
 
+from . import training_prepare
 from .account import identifier
 from .training import TrainingClient
 
@@ -89,6 +90,30 @@ def add_parser(subparsers):
                 required=True,
                 help="New output directory; existing paths are never overwritten",
             )
+    prepare = commands.add_parser(
+        "prepare",
+        help="Turn a CSV, TSV, JSON or JSONL file into train/calibration/test splits (no login, nothing sent)",
+    )
+    prepare.add_argument("input", type=Path, help="Examples: one row or object per example")
+    prepare.add_argument("--decide", required=True, help="Column holding the right answer")
+    prepare.add_argument(
+        "--read",
+        action="append",
+        help="Column the model reads (repeat; default: every other column except IDs)",
+    )
+    prepare.add_argument(
+        "--group", help="Column naming the case each row belongs to; a case stays in one split"
+    )
+    prepare.add_argument(
+        "--name", help="Training name, also the question family (default from the file and column)"
+    )
+    prepare.add_argument(
+        "--question", help="The decision in words, shown to the model with each example"
+    )
+    prepare.add_argument(
+        "--out", type=Path, help="Output folder (default zils-training/<name>); never overwritten"
+    )
+    prepare.add_argument("--json", action="store_true", help="Write the result JSON to stdout")
 
 
 def render(result):
@@ -118,8 +143,36 @@ def render(result):
     return "\n".join(lines)
 
 
+def render_prepared(result):
+    lines = [
+        f"Wrote {sum(result['counts'].values())} examples for “{result['decide']}”: "
+        + ", ".join(f"{n} {s}" for s, n in result["counts"].items()),
+        "Reads: " + ", ".join(result["read"]),
+        "Answers: " + ", ".join(result["answers"]),
+    ]
+    if result.get("note"):
+        lines.append(result["note"])
+    lines += [
+        f"Training will cost at most ${result['ceiling_usd']:.2f}.",
+        "Next: " + result["next"],
+    ]
+    return "\n".join(lines)
+
+
 def run(args):
     action = args.training_command
+    if action == "prepare":  # local only: no login and nothing sent
+        result = training_prepare.prepare(
+            args.input,
+            args.decide,
+            out=args.out,
+            read=args.read,
+            group=args.group,
+            name=args.name,
+            question=args.question,
+        )
+        print(json.dumps(result, ensure_ascii=False) if args.json else render_prepared(result))
+        return
     if hasattr(args, "job_id"):
         identifier(args.job_id)
     if action == "cancel" and not args.yes:

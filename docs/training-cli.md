@@ -49,6 +49,33 @@ privately enter an existing key, or `zils login --api-key -` to read from stdin.
 `zils logout` removes both local credential types, retaining recovery receipts.
 It does not revoke remote sessions/keys, delete jobs, or unset environment keys.
 
+## Prepare splits from a spreadsheet or export
+
+`zils train prepare` turns one file of past examples into the three splits. It
+reads CSV, TSV, a JSON array of objects, or JSON Lines; export Excel sheets as
+CSV first. It runs locally: no login, nothing sent.
+
+```sh
+zils train prepare tickets.csv --decide team --read message --read channel --group customer_id
+```
+
+- `--decide` is the column holding the right answer. It needs 2–255 different
+  answers, and each answer needs examples from at least 3 separate cases.
+- `--read` names a column the model reads; repeat it. Without it, every other
+  column is read except ID-like columns (`id`, `*_id`, `uuid`, `key`). Leave out
+  anything only known after the decision, such as a resolution time.
+- `--group` names the case each row belongs to (a customer, a thread), so
+  related rows stay in one split. Without it, each row is its own case.
+- `--name` and `--question` set the training name and the decision in words;
+  `--out` sets the folder (default `zils-training/<name>`). Existing files are
+  never overwritten.
+
+The rules match the zils.ai training page, so the same file gives the same
+splits in both: one choice question per row, about 70/15/15 by rows, every
+answer in all three splits, and identical rows refused. The command prints the
+counts, the answers per split, the most training can cost, and the matching
+`zils train submit` command. `--json` writes the same as JSON.
+
 ## Submit three reviewed splits
 
 From the repository root, this synthetic example demonstrates the input format:
