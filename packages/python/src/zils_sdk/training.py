@@ -121,7 +121,8 @@ def select_model(config, *, pool=None, base_channel=None, model=None):
             raise ValueError("Profile mismatch")
         return {
             "model": selected,
-            **({"pool": pool} if pool is not None else {}),
+            # A service without a pools catalog has only d3-mini (checked above) and refuses any pool.
+            **({"pool": pool} if pool is not None and "pools" in config else {}),
             **({"base_channel": base_channel} if base_channel is not None else {}),
         }
     except (ValueError, TypeError, KeyError, AttributeError, StopIteration):
@@ -499,10 +500,15 @@ class TrainingClient:
                 job = _job(response)
                 verify_job_profile(job, receipt)
             except (TrainingError, ValueError) as error:
-                # Grant generation can fail after creation, including with a 4xx response.
+                # Grant generation can fail after creation, including with a 4xx response. A refusal keeps
+                # the SDK's own explanation (HTTP status and guidance), never the service's text.
+                status = getattr(error, "status", None)
+                reason = f" {error}" if isinstance(error, TrainingError) and status else ""
                 raise TrainingError(
-                    getattr(error, "status", None),
-                    "Job creation could not be verified. Run zils train list before submitting again; no create request was retried.",
+                    status,
+                    "Job creation could not be verified."
+                    + reason.replace(" No automatic retry was made.", "")
+                    + " Run zils train list before submitting again; no create request was retried.",
                     True,
                 ) from None
             if tier == "open" and job.get("tier") != "open":

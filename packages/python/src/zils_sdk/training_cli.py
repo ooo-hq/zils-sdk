@@ -57,7 +57,8 @@ def add_parser(subparsers):
         if name == "submit":
             command.add_argument("--name", required=True)
             command.add_argument(
-                "--pool", help="Service pool key for the z3 line (default d3-mini)"
+                "--pool",
+                help="Service pool key for the z3 line (default: the service's own model, d3-mini)",
             )
             command.add_argument("--base-channel", choices=("stable", "latest"))
             command.add_argument("--model", help="Exact profile ID advertised by the service")

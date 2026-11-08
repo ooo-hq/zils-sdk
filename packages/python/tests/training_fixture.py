@@ -57,6 +57,7 @@ def training_server():
         download_mode = None
         returned_model = None
         submit_error = None  # (status, body) for POST /v1/jobs/<id>/submit
+        create_error = None  # (status, body) for POST /v1/jobs
         knows_tier = True  # False: a service from before zils-platform#90, which ignores the tier
 
         def grant(self, job_id, name, upload=True):
@@ -118,6 +119,13 @@ def training_server():
                 return self.reply(200, {"jobs": list(fixture.jobs.values()), "models": []})
             if self.command == "POST" and path == "/v1/jobs":
                 body = json.loads(raw)
+                if fixture.create_error:
+                    return self.reply(*fixture.create_error)
+                if "pool" in body and "pools" not in fixture.session["config"]:
+                    # as zils-platform's coordinator without a model-pools catalog
+                    return self.reply(
+                        400, {"error": "Model pools are not configured on this service."}
+                    )
                 if (
                     fixture.knows_tier
                 ):  # as zils-platform#90: private unless asked, open needs miner consent
