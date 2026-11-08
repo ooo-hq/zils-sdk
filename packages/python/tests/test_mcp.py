@@ -16,6 +16,7 @@ from training_fixture import training_server
 TOOLS = {
     "decide",
     "list_models",
+    "train_prepare",
     "train_check",
     "train_submit",
     "train_list",

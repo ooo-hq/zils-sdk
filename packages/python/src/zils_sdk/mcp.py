@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import AsyncZilsClient, ZilsError, training_data
+from . import AsyncZilsClient, ZilsError, training_data, training_prepare
 from ._input import check_request, error_message
 from ._training_http import TrainingError
 from .account import identifier
@@ -48,7 +48,8 @@ def build_server():
         "Zils",
         instructions="Call list_models to discover available Zils models. Use decide for typed "
         "yes/no, choice, and score questions. Configure an inference key with zils login --api-key. "
-        "Training tools need the user's browser account login (zils login). Run train_check and "
+        "Training tools need the user's browser account login (zils login). Turn the user's file into "
+        "splits with train_prepare, then run train_check and "
         "agree a cost limit with the user before train_submit. Decisions and training may consume "
         "paid credit. No automatic retries.",
         log_level="WARNING",
@@ -102,6 +103,29 @@ def build_server():
 
     def splits(train, calibration, test):
         return {"train": Path(train), "calibration": Path(calibration), "test": Path(test)}
+
+    @server.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
+    async def train_prepare(
+        input: str,
+        decide: str,
+        read: list[str] | None = None,
+        group: str | None = None,
+        name: str | None = None,
+        question: str | None = None,
+        out: str | None = None,
+    ) -> dict[str, Any]:
+        """Turn the user's CSV, TSV, JSON or JSONL file into the three training splits. Local; no login.
+
+        decide is the column holding the right answer. read lists the columns the model may use; leave out IDs
+        and anything only known after the decision (for example a resolution time). group names the case each
+        row belongs to, so related rows stay in one split. Writes train/calibration/test JSONL to out (never
+        overwriting) and returns the counts, the answers per split, the cost ceiling and the submit command.
+        """
+        return await training(
+            lambda: training_prepare.prepare(
+                input, decide, out=out, read=read, group=group, name=name, question=question
+            )
+        )
 
     @server.tool(annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True))
     async def train_check(train: str, calibration: str, test: str) -> dict[str, Any]:
