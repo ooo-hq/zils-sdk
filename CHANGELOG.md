@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.16 — 2026-11-08
 
 - `zils train submit --pool d3-mini` (and `train_submit` with that pool) works
   on a training service without a model-pools catalog. The pool is implied
