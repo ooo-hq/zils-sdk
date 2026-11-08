@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from . import AsyncZilsClient, ZilsError, training_data, training_prepare
 from ._input import check_request, error_message
@@ -147,16 +147,21 @@ def build_server():
         min_brier_improvement: float,
         max_cost_usd: float,
         allow_training_data_export: bool,
+        tier: Literal["open", "private"],
+        allow_open_tier_training: bool = False,
         pool: str | None = None,
         base_channel: str | None = None,
     ) -> dict[str, Any]:
-        """Submit a paid z3 adapter training job from three text JSONL splits.
+        """Submit a z3 adapter training job from three text JSONL splits.
 
-        Refuses before sending anything when train_check's ceiling_usd is above max_cost_usd;
-        agree that limit with the user first. min_accuracy (0–1) and min_brier_improvement
-        (0–2) are the bars the trained adapter must clear on the test split.
-        allow_training_data_export must be true: training examples go to approved workers.
-        Never retry an uncertain submission; check train_list first.
+        tier: ask the user before choosing. "private" is paid and trained only on Zils workers.
+        "open" is free and trained by Zils network miners, who receive the training split and must
+        delete it within 7 days; it also needs allow_open_tier_training true, the user's permission.
+        For private jobs, refuses before sending anything when train_check's ceiling_usd is above
+        max_cost_usd; agree that limit with the user first. min_accuracy (0–1) and
+        min_brier_improvement (0–2) are the bars the trained adapter must clear on the test split.
+        allow_training_data_export must be true. Never retry an uncertain submission; check
+        train_list first.
         """
         return await training(
             lambda: TrainingClient().submit(
@@ -167,6 +172,8 @@ def build_server():
                 pool=pool,
                 base_channel=base_channel,
                 max_cost_usd=max_cost_usd,
+                tier=tier,
+                allow_open_tier_training=allow_open_tier_training,
             )
         )
 

@@ -73,6 +73,17 @@ class TrainingCliTests(unittest.TestCase):
             "--json",
         ]
 
+    def test_tier_flags(self):
+        with training_server() as fixture:
+            self.signin(fixture)
+            refused = self.run_cli(*self.submit_args(), "--tier", "open")
+            self.assertNotEqual(refused.returncode, 0)
+            self.assertIn("--allow-open-tier-training", refused.stderr)
+            self.assertEqual(fixture.jobs, {})
+            done = self.run_cli(*self.submit_args(), "--tier", "open", "--allow-open-tier-training")
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual(json.loads(done.stdout)["tier"], "open")
+
     def test_subprocess_submit_list_status_resume_cancel_and_download(self):
         with training_server() as fixture:
             self.signin(fixture)

@@ -73,6 +73,16 @@ def add_parser(subparsers):
                 action="store_true",
                 help="Permit training examples to be copied to approved workers",
             )
+            command.add_argument(
+                "--tier",
+                choices=("open", "private"),
+                help="open: free, trained by Zils network miners; private (default): paid, Zils workers only",
+            )
+            command.add_argument(
+                "--allow-open-tier-training",
+                action="store_true",
+                help="With --tier open: permit the training split to be sent to Zils network miners",
+            )
         if name == "status":
             command.add_argument(
                 "--watch",
@@ -203,6 +213,8 @@ def run(args):
                 base_channel=args.base_channel,
                 model=args.model,
                 max_cost_usd=args.max_cost,
+                tier=args.tier,
+                allow_open_tier_training=args.allow_open_tier_training,
             )
             if action == "submit"
             else client.resume(args.job_id, files)

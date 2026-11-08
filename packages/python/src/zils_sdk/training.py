@@ -237,6 +237,8 @@ def public_status(job):
         "status": job["status"],
         "download_available": False,
     }
+    if job.get("tier") in ("open", "private"):
+        result["tier"] = job["tier"]
     workflow = job.get("workflow") or {}
     if isinstance(workflow, dict) and workflow.get("state") in {
         "waiting_capacity",
@@ -402,7 +404,18 @@ class TrainingClient:
         base_channel=None,
         model=None,
         max_cost_usd=None,
+        tier=None,
+        allow_open_tier_training=False,
     ):
+        # Open jobs are free and trained by Zils network miners; private jobs are paid and stay on Zils workers.
+        # Without a tier the service makes the job private.
+        if tier is not None and tier not in ("open", "private"):
+            raise ValueError("Use tier 'open' or 'private'.")
+        if tier == "open" and allow_open_tier_training is not True:
+            raise ValueError(
+                "Open-tier training sends the training split to Zils network miners, who must delete it "
+                "within 7 days. Confirm with --allow-open-tier-training. Nothing was sent."
+            )
         if not isinstance(policy, dict) or set(policy) != {"min_accuracy", "min_brier_improvement"}:
             raise ValueError("Supply both training acceptance thresholds.")
         policy = training_data.validate_policy(
@@ -418,7 +431,7 @@ class TrainingClient:
         pending = self.root / ("pending-" + prepared["snapshot"] + ".json")
         retain = False
         try:
-            if max_cost_usd is not None:
+            if max_cost_usd is not None and tier != "open":  # open-tier training is free
                 ceiling = training_data.cost_ceiling(prepared["files"]["train"]["count"])
                 if ceiling["ceiling_usd"] > max_cost_usd:
                     raise ValueError(
@@ -455,8 +468,13 @@ class TrainingClient:
                 )
                 + f"Minimum accuracy: {policy['min_accuracy']}; "
                 f"minimum Brier improvement: {policy['min_brier_improvement']}\n"
-                "Training-data export: allowed to approved workers.\n"
-                "Submission uses this account's training allowance/credit under the service's rules.",
+                + (
+                    "Tier: open, free. Zils network miners receive the training split and must delete it "
+                    "within 7 days of the job finishing."
+                    if tier == "open"
+                    else "Tier: private. Training-data export: allowed to approved Zils workers.\n"
+                    "Submission uses this account's training allowance/credit under the service's rules."
+                ),
                 file=sys.stderr,
                 flush=True,
             )
@@ -472,6 +490,8 @@ class TrainingClient:
                         **selection,
                         "acceptance": policy,
                         "allow_training_data_export": True,
+                        **({"tier": tier} if tier else {}),
+                        **({"allow_open_tier_training": True} if tier == "open" else {}),
                     },
                 )
                 job = _job(response)
@@ -483,6 +503,16 @@ class TrainingClient:
                     "Job creation could not be verified. Run zils train list before submitting again; no create request was retried.",
                     True,
                 ) from None
+            if tier == "open" and job.get("tier") != "open":
+                # A service that does not know tiers makes every job private, and private jobs are charged.
+                # Cancel it while it is still uploading, before any data or charge, rather than train it as private.
+                self._request(session, "POST", f"/v1/jobs/{job['id']}/cancel", {})
+                pending.unlink()
+                retain = False
+                raise ValueError(
+                    "This training service does not offer the open tier yet, so the job was cancelled before "
+                    "anything was uploaded or charged. Submit it as private, or again once open-tier training is live."
+                )
             receipt.update(job_id=job["id"], stage="uploading")
             self._save(receipt)
             pending.unlink()
