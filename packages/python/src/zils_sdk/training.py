@@ -421,6 +421,8 @@ class TrainingClient:
         policy = training_data.validate_policy(
             name, policy["min_accuracy"], policy["min_brier_improvement"], consent
         )
+        if tier == "open":  # free: there is no cost to limit, so 0 or no limit is fine
+            max_cost_usd = None
         if max_cost_usd is not None and (
             type(max_cost_usd) not in (int, float)
             or not math.isfinite(max_cost_usd)
@@ -431,7 +433,7 @@ class TrainingClient:
         pending = self.root / ("pending-" + prepared["snapshot"] + ".json")
         retain = False
         try:
-            if max_cost_usd is not None and tier != "open":  # open-tier training is free
+            if max_cost_usd is not None:
                 ceiling = training_data.cost_ceiling(prepared["files"]["train"]["count"])
                 if ceiling["ceiling_usd"] > max_cost_usd:
                     raise ValueError(

@@ -9,6 +9,7 @@ import csv
 import hashlib
 import json
 import re
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from . import training_data
@@ -148,6 +149,31 @@ def split_groups(groups: list[dict], outcomes: list[str]) -> dict[str, list[dict
     )
 
 
+def leaks(rows: list[dict[str, str]], columns: list[str], decide: str) -> list[dict]:
+    """Columns whose value almost fixes the answer, like the agent who handled a ticket: usually filled in after
+    the decision, so the model would learn nothing it can use. Free text and IDs (one value per few rows) are not
+    judged, and a common answer alone is not a leak."""
+    base = max(Counter(r[decide] for r in rows).values()) / len(rows)
+    found = []
+    for column in columns:
+        answers = defaultdict(Counter)
+        for row in rows:
+            answers[row[column]][row[decide]] += 1
+        if not 2 <= len(answers) <= len(rows) // 4:
+            continue
+        agreement = sum(max(a.values()) for a in answers.values()) / len(rows)
+        if agreement >= 0.95 and agreement - base >= 0.9 * (1 - base):
+            found.append(
+                {
+                    "column": column,
+                    "agreement": round(agreement, 3),
+                    "reason": f"Its value gives away “{decide}” in {agreement:.0%} of rows. Columns like this are "
+                    "usually filled in after the decision; read it only if it is known when deciding.",
+                }
+            )
+    return found
+
+
 def _slug(text: str) -> str:
     return (
         re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", text.lower())).strip("-")[:64] or "zils-model"
@@ -174,9 +200,12 @@ def prepare(
             )
         inputs = sorted(dict.fromkeys(read))
         skipped = [c for c in headers if c not in inputs and c not in (decide, group)]
+        leaked = leaks(rows, inputs, decide)
     else:
         inputs = sorted(c for c in headers if c not in (decide, group) and not ID_NAME.search(c))
-        skipped = [c for c in headers if c not in (decide, group) and ID_NAME.search(c)]
+        leaked = leaks(rows, inputs, decide)
+        inputs = [c for c in inputs if c not in {leak["column"] for leak in leaked}]
+        skipped = [c for c in headers if c not in (decide, group) and c not in inputs]
     if not inputs:
         raise ValueError(
             "Nothing is left for the model to read. Choose at least one input column with --read."
@@ -259,6 +288,7 @@ def prepare(
         "decide": decide,
         "read": inputs,
         "skipped": skipped,
+        "leaks": leaked,
         "group": group,
         **(
             {}

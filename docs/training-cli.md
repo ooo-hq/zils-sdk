@@ -62,8 +62,12 @@ zils train prepare tickets.csv --decide team --read message --read channel --gro
 - `--decide` is the column holding the right answer. It needs 2–255 different
   answers, and each answer needs examples from at least 3 separate cases.
 - `--read` names a column the model reads; repeat it. Without it, every other
-  column is read except ID-like columns (`id`, `*_id`, `uuid`, `key`). Leave out
-  anything only known after the decision, such as a resolution time.
+  column is read except ID-like columns (`id`, `*_id`, `uuid`, `key`) and columns
+  that give the answer away. A column gives it away when its value fixes the
+  answer in at least 95% of rows, like the agent who handled a ticket; the
+  output lists these under `leaks`, and names them even when `--read` includes
+  them. Leave out anything only known after the decision, such as a resolution
+  time: `prepare` cannot tell those apart, so check what it reads.
 - `--group` names the case each row belongs to (a customer, a thread), so
   related rows stay in one split. Without it, each row is its own case.
 - `--name` and `--question` set the training name and the decision in words;
@@ -110,7 +114,7 @@ Choose who trains the job with `--tier`:
   charged instead of training it as private.
 
 Add `--max-cost 5` to refuse a private job, before anything is sent, when it could
-cost more than $5. The service bills each train-split prompt token once at
+cost more than $5. Open jobs are free, so the limit does not apply to them. The service bills each train-split prompt token once at
 $0.20 per million, never below $2. The CLI cannot count tokens without the
 model's tokenizer, so it prices every train case at the 8,192-token cap: the
 ceiling is `max($2, train cases × 8,192 × $0.20 / 1M)`, and the real charge is

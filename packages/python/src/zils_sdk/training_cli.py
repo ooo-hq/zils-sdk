@@ -160,6 +160,11 @@ def render_prepared(result):
         "Reads: " + ", ".join(result["read"]),
         "Answers: " + ", ".join(result["answers"]),
     ]
+    lines += [
+        ("Check " if leak["column"] in result["read"] else "Left out ")
+        + f"{leak['column']}: {leak['reason']}"
+        for leak in result["leaks"]
+    ]
     if result.get("note"):
         lines.append(result["note"])
     lines += [

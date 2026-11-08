@@ -64,6 +64,24 @@ class TierTests(unittest.TestCase):
             self.assertIn("network miners", notice.getvalue())
             self.assertIn("free", notice.getvalue())
 
+    def test_open_jobs_need_no_cost_limit(self):
+        # Agents reasonably send 0 or nothing for a free job.
+        for limit in (None, 0):
+            with (
+                self.subTest(limit=limit),
+                training_server() as fixture,
+                redirect_stderr(io.StringIO()),
+            ):
+                result = self.submit(
+                    fixture, tier="open", allow_open_tier_training=True, max_cost_usd=limit
+                )
+                self.assertEqual(result["tier"], "open")
+
+    def test_private_jobs_still_refuse_a_zero_cost_limit(self):
+        with training_server() as fixture, self.assertRaisesRegex(ValueError, "cost limit"):
+            self.submit(fixture, tier="private", max_cost_usd=0)
+        self.assertEqual(fixture.calls, [])
+
     def test_unknown_tiers_are_refused_before_anything_is_sent(self):
         with training_server() as fixture:
             for tier in ("public", "", 1):
@@ -97,6 +115,38 @@ class TierMcpTests(unittest.TestCase):
         self.assertIn("tier", schema["required"])
         self.assertIn("allow_open_tier_training", schema["properties"])
         self.assertIn("ask the user", tools["train_submit"].description.lower())
+
+    def test_agents_name_a_cost_limit_for_private_jobs_only(self):
+        import asyncio
+
+        from mcp.server.fastmcp.exceptions import ToolError
+        from zils_sdk import mcp
+
+        server = mcp.build_server()
+        tools = {t.name: t for t in asyncio.run(server.list_tools())}
+        self.assertNotIn("max_cost_usd", tools["train_submit"].inputSchema["required"])
+        arguments = {
+            "name": "routing",
+            "train": "t.jsonl",
+            "calibration": "c.jsonl",
+            "test": "s.jsonl",
+            "min_accuracy": 0.8,
+            "min_brier_improvement": 0.01,
+            "allow_training_data_export": True,
+            "tier": "private",
+        }
+        with self.assertRaisesRegex(ToolError, "cost limit"):
+            asyncio.run(server.call_tool("train_submit", arguments))
+
+    def test_agents_agree_the_pass_bars_with_the_user(self):
+        import asyncio
+
+        from zils_sdk import mcp
+
+        tools = {t.name: t for t in asyncio.run(mcp.build_server().list_tools())}
+        description = tools["train_submit"].description.lower()
+        self.assertIn("pass bars", description)
+        self.assertIn("agree", description)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ from training_fixture import training_server
 TOOLS = {
     "decide",
     "list_models",
+    "train_guide",
     "train_prepare",
     "train_check",
     "train_submit",
@@ -131,7 +132,8 @@ class McpTests(unittest.TestCase):
 
             async def check(session):
                 tools = {t.name: t for t in (await session.list_tools()).tools}
-                self.assertIn("max_cost_usd", tools["train_submit"].inputSchema["required"])
+                # Open jobs are free, so the limit is not in the schema; private jobs refuse without it.
+                self.assertNotIn("max_cost_usd", tools["train_submit"].inputSchema["required"])
                 self.assertIn("tier", tools["train_submit"].inputSchema["required"])
                 self.assertTrue(tools["train_cancel"].annotations.destructiveHint)
                 self.assertTrue(tools["train_check"].annotations.readOnlyHint)
@@ -143,6 +145,7 @@ class McpTests(unittest.TestCase):
                 self.assertIn("zils login", missing.content[0].text)
                 unbudgeted = await session.call_tool("train_submit", submit)
                 self.assertTrue(unbudgeted.isError)
+                self.assertIn("cost limit", unbudgeted.content[0].text)
                 self.assertEqual(fixture.calls, [])
                 self.signin(env, fixture)
                 over = await session.call_tool("train_submit", {**submit, "max_cost_usd": 1})
