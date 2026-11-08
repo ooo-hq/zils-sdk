@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.14 — 2026-11-08
+
+- `zils train prepare` turns a file of past examples into the three training
+  splits: CSV, TSV, a JSON array of objects, or JSON Lines. `--decide` names
+  the answer column, `--read` the columns the model reads (default: every
+  other column except ID-like ones), and `--group` the case each row belongs
+  to, so related rows stay in one split. It follows the zils.ai training
+  page's rules and writes the same splits for the same file. It runs locally
+  (no login, nothing sent), never overwrites, and prints the counts, the most
+  training can cost and the matching `zils train submit` command. The MCP
+  server gains the same tool, `train_prepare`.
+- `zils train submit --tier open|private`. Open runs are free and trained by
+  Zils network miners, who receive the training split and must delete it
+  within 7 days; they also need `--allow-open-tier-training`. Private runs
+  (the default, as before) are paid and trained only by Zils workers;
+  `--max-cost` applies to them. The MCP tool `train_submit` now requires
+  `tier`, so an agent asks the user. Against a service without the open tier,
+  an open job is cancelled before anything is uploaded or charged. Job status
+  shows the tier.
+
 ## 0.4.13 — 2026-11-05
 
 - The MCP server can train. New tools: `train_check` (local split checks and
