@@ -53,6 +53,21 @@ trained model's accuracy and Brier score on the test split. Report both honestly
 already as accurate, say the gain is in calibration only. If it was not accepted, it did not clear the bars
 agreed in step 3; say which.
 
+## Decisions made inside the user's program
+When the decisions happen in the user's code (an LLM call that picks a label, a rule, a game or agent choosing
+its next move) rather than in a file of past examples, collect the examples from the program first:
+- fit_scan finds model calls that make typed decisions and drafts their questions; read the code around each
+  call and replace every TODO. A rule or scripted player is not found by the scan: wrap that function with
+  record() instead (Python `from zils_sdk import record`, TypeScript `import { record } from '@zils/sdk'`).
+- record() logs each call's state and answer. For games, sessions or conversations, log each episode to its own
+  file (set ZILS_FIT_LOG per episode) so one episode never lands in both training and test.
+- fit_run measures the untrained model against the logged answers. It sends one paid request per distinct
+  input: agree the number with the user and pass it as max_rows.
+- To train, call train_prepare with the log or folder as input, the questions, and decide set to the question;
+  then continue from step 3 (pass bars, open or private, submit, wait, report). Train only on answers that are
+  right (real outcomes, or the program's answers when the goal is to copy it), never on inputs you wrote to test.
+- After training, run fit_run again with the trained model's API id as model and show the user both results.
+
 ## 8. Use the model
 An accepted model has an API model id (train_status shows it). Call it with decide, passing that id as model.
 decide needs an inference API key, separate from the training sign-in: the user runs `zils login --api-key`

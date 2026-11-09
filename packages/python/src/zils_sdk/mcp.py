@@ -48,7 +48,9 @@ def build_server():
         "Zils",
         instructions="Call list_models to discover available Zils models. Use decide for typed "
         "yes/no, choice, and score questions. Configure an inference key with zils login --api-key. "
-        "Before training a model, read train_guide: it lists what to agree with the user. Training tools "
+        "Before training a model, read train_guide: it lists what to agree with the user, including decisions "
+        "made inside the user's own program (fit_scan finds them, fit_run measures a model on logged ones). "
+        "Training tools "
         "need the user's browser account login (zils login). Decisions and training may consume "
         "paid credit. No automatic retries.",
         log_level="WARNING",
@@ -108,29 +110,117 @@ def build_server():
         """How to train a Zils model for the user, step by step. Read it before the other train_ tools. Local."""
         return {"guide": training_guide.GUIDE}
 
+    def questions_from(value):
+        """fit's questions: the object itself, or the path of the file zils fit scan wrote."""
+        if value is None or isinstance(value, dict):
+            return value
+        from .training_cli import load_questions
+
+        return load_questions(value)
+
     @server.tool(annotations=ToolAnnotations(destructiveHint=False, idempotentHint=False))
     async def train_prepare(
         input: str,
-        decide: str,
+        decide: str | None = None,
         read: list[str] | None = None,
         group: str | None = None,
         name: str | None = None,
         question: str | None = None,
         out: str | None = None,
+        questions: dict[str, dict[str, Any]] | str | None = None,
     ) -> dict[str, Any]:
-        """Turn the user's CSV, TSV, JSON or JSONL file into the three training splits. Local; no login.
+        """Turn the user's examples into the three training splits. Local; no login.
 
-        decide is the column holding the right answer. read lists the columns the model may use; leave out IDs
-        and anything only known after the decision (for example a resolution time). group names the case each
-        row belongs to, so related rows stay in one split. Writes train/calibration/test JSONL to out (never
-        overwriting) and returns the counts, the answers per split, the cost ceiling and the submit command.
-        leaks lists columns that give the answer away; without read they are left out, with read they are kept.
+        A table (CSV, TSV, JSON or JSONL rows): decide is the column holding the right answer. read lists the
+        columns the model may use; leave out IDs and anything only known after the decision (for example a
+        resolution time). group names the case each row belongs to, so related rows stay in one split. leaks
+        lists columns that give the answer away; without read they are left out, with read they are kept.
+        Decision logs from record() (a log, or a folder with one log per episode): decide picks the logged
+        question when there are several, questions is fit's questions object or file (wording and options);
+        each episode stays in one split, and repeats of an earlier situation are left out and counted.
+        Writes train/calibration/test JSONL to out (never overwriting) and returns the counts, the answers per
+        split, the cost ceiling and the submit command.
         """
-        return await training(
-            lambda: training_prepare.prepare(
+
+        def work():
+            if training_prepare.is_log(input):
+                if read or group:
+                    raise ValueError(
+                        "--read and --group are for tables. In a log the state is what the model reads, and "
+                        "each episode stays together."
+                    )
+                return training_prepare.prepare_log(
+                    input,
+                    questions=questions_from(questions),
+                    decide=decide,
+                    question=question,
+                    out=out,
+                    name=name,
+                )
+            if not decide:
+                raise ValueError("Name the column holding the right answer in decide.")
+            return training_prepare.prepare(
                 input, decide, out=out, read=read, group=group, name=name, question=question
             )
-        )
+
+        return await training(work)
+
+    @server.tool(annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True))
+    async def fit_scan(path: str = ".", include_tests: bool = False) -> dict[str, Any]:
+        """Find the model calls in the user's code that make typed decisions Zils could answer. Local; no login.
+
+        Returns findings (each call: kind, name, function, location, question) and questions, drafted Zils
+        questions for the decision calls ({id: {type, instructions, criteria}}). Read the code around each call
+        and replace every TODO before using the questions. Programs that decide without a model call (rules, a
+        scripted player) are not found: wrap that function with record() instead.
+        """
+        from .fit import draft_questions, scan
+
+        def work():
+            found = scan(Path(path), include_tests)
+            return {"findings": found, "questions": draft_questions(found)}
+
+        return await training(work)
+
+    @server.tool(annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=False))
+    async def fit_run(
+        questions: dict[str, dict[str, Any]] | str,
+        log: str,
+        model: str = "zils-shared",
+        max_rows: int = 500,
+        target: float = 0.95,
+        point_estimate: bool = False,
+    ) -> dict[str, Any]:
+        """Measure a Zils model on logged decisions: how often it agrees with the logged answers, per question.
+
+        log is a record() log or a folder of them; questions is fit's questions object or file. model defaults to
+        the untrained zils-shared; pass a trained model's API id to measure it after training. Sends one paid
+        request per distinct logged input and refuses before sending anything if there are more than max_rows:
+        agree the number with the user first. Returns, per question, the share handled at the target agreement
+        and its status (ok, check_miss, no_threshold, too_few_rows).
+        """
+        from . import ZilsClient
+        from .fit import measure, run_rows
+
+        def work():
+            asked = questions_from(questions)
+            rows = run_rows(asked, log, target=target, max_rows=max_rows)
+            with ZilsClient(**load_credentials()) as client:
+
+                def predict(state, chosen):
+                    result = client.system_one(state=state, questions=chosen, model=model)
+                    return result.model_dump(mode="json")["answers"]
+
+                report = measure(
+                    rows, asked, predict, target=target, conservative=not point_estimate
+                )
+            report.pop("answers")
+            return {**report, "model": model}
+
+        try:
+            return await training(work)
+        except ZilsError as error:
+            raise ToolError(error_message(error)) from None
 
     @server.tool(annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True))
     async def train_check(train: str, calibration: str, test: str) -> dict[str, Any]:

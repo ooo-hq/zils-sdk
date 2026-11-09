@@ -26,6 +26,8 @@ Zils answers typed questions (yes/no `noul`, pick-one `choice`, rating `score`) 
 4. **Run** `zils fit run --questions zils-fit/questions.json --log zils-fit/fit-log.jsonl --answers zils-fit/answers.jsonl --json`. The report gives `agreed`, `agreement_all` and `disagreements` per question, scoring yes/no at 0.5. With under ~150 inputs, thresholds report `too_few_rows`; that is expected, so judge by agreement and confidence.
 5. **Apply the app's own rules** when the code has them (minimum confidence before acting, cut-offs for yes/no, fallback when unsure, how several answers combine). Compute them from `answers.jsonl`: one line per input with `state`, `logged` (your expected answers by question id) and `zils` (Zils's full answers by question id: `noul` probability, or `probabilities` and `choice`), and report what Zils would decide versus hand back. Group related question ids back into the decision they belong to.
 
+6. **Train if it misses.** When a question misses the target and the log holds right answers (real traffic logged with `record()`, or verified outcomes; never the test inputs you wrote in step 3), offer to train it. Agree the pass bars and open or private training with the user first (the `train_guide` MCP tool explains both), then run `zils fit train --log <log or folder> --questions zils-fit/questions.json --decide <id> --min-accuracy <agreed> --min-brier-improvement <agreed> --tier <open|private>` with `--allow-training-data-export` (and `--allow-open-tier-training` for open, `--max-cost` for private). For games or sessions, log one file per episode and pass the folder. When `zils train status <job id>` shows the API model, run `zils fit run --model <API model id>` on the same log and report before and after.
+
 ## Report shape
 
 Write for someone who may not code. In order:
@@ -35,7 +37,7 @@ Write for someone who may not code. In order:
 3. Each disagreement in one line: the input gist, expected, Zils, confidence. Say if the expected label is arguable.
 4. How to switch: the exact setting or code change, plus anything blocking it.
 5. Caveats: inputs and labels were written by you, not real traffic; no comparison with the current model unless you ran one.
-6. Next step: measuring on real traffic with `record()` (Python `from zils_sdk import record`, TypeScript `import { record } from '@zils/sdk'`) and `zils fit run`.
+6. Next step: measuring on real traffic with `record()` (Python `from zils_sdk import record`, TypeScript `import { record } from '@zils/sdk'`) and `zils fit run`, then `zils fit train` if a question misses.
 
 Do not change the app's code unless the user asks; offer the change instead.
 
