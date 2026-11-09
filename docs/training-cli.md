@@ -119,8 +119,8 @@ Choose who trains the job with `--tier`:
   permission to send the training split to them. If the service does not offer
   the open tier yet, the CLI cancels the job before anything is uploaded or
   charged instead of training it as private.
-  An account can start 3 open jobs in any 24 hours, each up to 5,000,000
-  training tokens, and the open tier as a whole has a daily limit; past either,
+  An account can start 3 open jobs in any 24 hours, each up to 5,000 examples
+  and 5,000,000 training tokens, and the open tier as a whole has a daily limit; past either,
   train the job privately.
   An open-tier model is served by Zils and used through the API; it cannot be
   downloaded.
