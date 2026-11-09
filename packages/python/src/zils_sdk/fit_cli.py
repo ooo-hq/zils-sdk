@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from .credentials import load_credentials
-from .fit import draft_questions, measure, read_log, scan
+from .fit import draft_questions, measure, run_rows, scan
 
 KIND = {"noul": "yes/no", "choice": "choice", "score": "score"}
 STATUS = {
@@ -83,7 +83,12 @@ def add_parser(subparsers):
     run = commands.add_parser(
         "run", help="Replay a fit log on Zils (one paid request per logged input)"
     )
-    run.add_argument("--log", type=Path, default=Path("fit-log.jsonl"))
+    run.add_argument(
+        "--log",
+        type=Path,
+        default=Path("fit-log.jsonl"),
+        help="A record() log, or a folder of them",
+    )
     run.add_argument("--questions", type=Path, required=True, help="Questions JSON from scan")
     run.add_argument("--model", default="zils-shared")
     run.add_argument("--target", type=float, default=0.95, help="Required agreement (0.95)")
@@ -203,17 +208,7 @@ def _run(args):
     from . import ZilsClient
 
     questions = json.loads(args.questions.read_text(encoding="utf-8"))
-    if not isinstance(questions, dict) or not questions:
-        raise ValueError("Questions must be a JSON object of Zils questions.")
-    if any("TODO" in json.dumps(q) for q in questions.values()):
-        raise ValueError(f"Replace every TODO in {args.questions} first.")
-    if not 0 < args.target < 1 or args.max_rows < 1:
-        raise ValueError("Use a target between 0 and 1 and a positive --max-rows.")
-    rows = [r for r in read_log(args.log) if set(r["labels"]) & set(questions)]
-    if not rows:
-        raise ValueError(f"No logged answers in {args.log} match the questions.")
-    if len(rows) > args.max_rows:
-        raise ValueError(f"{len(rows)} logged inputs exceed --max-rows {args.max_rows}.")
+    rows = run_rows(questions, args.log, target=args.target, max_rows=args.max_rows)
     err = painter(sys.stderr)
     live = sys.stderr.isatty()
     done = [0]

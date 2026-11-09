@@ -75,8 +75,15 @@ def record(question):
 
 
 def read_log(path):
-    """Merge logged calls on the same input into rows: {id, state, labels}."""
+    """Merge logged calls on the same input into rows: {id, state, labels}. A folder means every .jsonl in it."""
+    path = Path(path)
     rows = {}
+    for log in sorted(path.glob("*.jsonl")) if path.is_dir() else [path]:
+        _read_one(log, rows)
+    return list(rows.values())
+
+
+def _read_one(path, rows):
     with open(path, encoding="utf-8") as stream:
         for number, line in enumerate(stream, 1):
             if not line.strip():
@@ -92,7 +99,22 @@ def read_log(path):
                 {"id": hashlib.sha256(key.encode()).hexdigest()[:12], "state": state, "labels": {}},
             )
             row["labels"][question] = answer  # the latest answer wins
-    return list(rows.values())
+
+
+def run_rows(questions, log, *, target, max_rows):
+    """The logged inputs `zils fit run` would send, after the checks that keep it from spending by mistake."""
+    if not isinstance(questions, dict) or not questions:
+        raise ValueError("Questions must be a JSON object of Zils questions.")
+    if any("TODO" in json.dumps(q) for q in questions.values()):
+        raise ValueError("Replace every TODO in the questions first.")
+    if not 0 < target < 1 or max_rows < 1:
+        raise ValueError("Use a target between 0 and 1 and a positive --max-rows.")
+    rows = [r for r in read_log(log) if set(r["labels"]) & set(questions)]
+    if not rows:
+        raise ValueError(f"No logged answers in {log} match the questions.")
+    if len(rows) > max_rows:
+        raise ValueError(f"{len(rows)} logged inputs exceed --max-rows {max_rows}.")
+    return rows
 
 
 # ---------------------------------------------------------------- scan

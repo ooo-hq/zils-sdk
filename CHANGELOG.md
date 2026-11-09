@@ -11,6 +11,12 @@
   is kept as JSON, repeats of an earlier situation are left out and counted, and
   `--questions` takes the wording and options from `zils fit scan`'s file. Choice
   and yes/no questions.
+- MCP gains `fit_scan` (find decision calls and draft their questions, local) and
+  `fit_run` (measure a model, untrained or trained, on logged decisions; refuses
+  beyond `max_rows`). `train_prepare` takes `record` logs and fit's questions too.
+  `train_guide` covers decisions made inside the user's program, and the zils-fit
+  skill goes on to `zils fit train` when a question misses.
+- `zils fit run --log` also reads a folder of logs.
 
 ## 0.4.16 — 2026-11-08
 
