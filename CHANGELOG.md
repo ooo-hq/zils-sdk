@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.17 — 2026-11-08
 
 - `zils fit train` trains a model on logged decisions: it prepares the three
   splits from a `record` log (or a folder with one log per episode) and submits
