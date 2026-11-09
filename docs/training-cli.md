@@ -119,6 +119,9 @@ Choose who trains the job with `--tier`:
   permission to send the training split to them. If the service does not offer
   the open tier yet, the CLI cancels the job before anything is uploaded or
   charged instead of training it as private.
+  An account can start 3 open jobs in any 24 hours, each up to 5,000,000
+  training tokens, and the open tier as a whole has a daily limit; past either,
+  train the job privately.
 
 Add `--max-cost 5` to refuse a private job, before anything is sent, when it could
 cost more than $5. Open jobs are free, so the limit does not apply to them. The service bills each train-split prompt token once at

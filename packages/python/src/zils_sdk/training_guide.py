@@ -33,6 +33,7 @@ what a wrong answer costs the user, not from what seems easy to pass.
 Ask the user; never choose for them.
 - open: free. Zils network miners train it and receive the training split; they must delete it within 7 days.
   Pass allow_open_tier_training true only after the user agrees to that.
+  Limits: 3 open jobs per account in 24 hours, up to 5,000,000 training tokens each; past them, train privately.
 - private: paid ($0.20 per million training tokens, $2 minimum), trained only on Zils's own workers. Agree a
   max_cost_usd with the user; train_check and train_prepare report ceiling_usd, the most the job can cost.
 

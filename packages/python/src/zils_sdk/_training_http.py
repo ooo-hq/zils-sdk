@@ -37,6 +37,9 @@ def read_json(
                         401: "Run zils login.",
                         402: "There is not enough prepaid credit on this account, or a payment"
                         f" needs attention. Add credit at {BILLING_URL}.",
+                        429: "The open tier's daily limit is reached: 3 open-tier runs per account in"
+                        " 24 hours, and a limit across Zils. Train this run with --tier private, or try"
+                        " the open tier again later.",
                     }.get(response.status_code, "Check the job and account before trying again.")
                     raise TrainingError(
                         response.status_code,
