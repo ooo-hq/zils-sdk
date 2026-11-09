@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.18 — 2026-11-09
+
+- Open-tier limits get a plain answer. When the service refuses an open-tier
+  run (3 per account in 24 hours, or the daily limit across Zils), the CLI says
+  so and points to `--tier private` instead of "Check the job and account".
+- `zils train download` refuses open-tier models before calling the service:
+  they are served by Zils and used through the API (`zils train status` shows
+  the model ID); model files come with private training.
+- The CLI docs and `train_guide` state the open tier's limits per run: 5,000
+  examples and 5,000,000 training tokens, and no model download.
+
 ## 0.4.17 — 2026-11-08
 
 - `zils fit train` trains a model on logged decisions: it prepares the three
