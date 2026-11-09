@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- `zils fit train` trains a model on logged decisions: it prepares the three
+  splits from a `record` log (or a folder with one log per episode) and submits
+  them with the same options as `zils train submit`. Measure the result with
+  `zils fit run --model`.
+- `zils train prepare` reads `record` logs as well as tables. Each episode (a
+  file in the folder, or an `episode` field) stays in one split, the logged state
+  is kept as JSON, repeats of an earlier situation are left out and counted, and
+  `--questions` takes the wording and options from `zils fit scan`'s file. Choice
+  and yes/no questions.
+
 ## 0.4.16 — 2026-11-08
 
 - `zils train submit --pool d3-mini` (and `train_submit` with that pool) works

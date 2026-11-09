@@ -74,6 +74,13 @@ zils train prepare tickets.csv --decide team --read message --read channel --gro
   `--out` sets the folder (default `zils-training/<name>`). Existing files are
   never overwritten.
 
+`prepare` also reads decision logs written by `record` (see [fit](fit.md)): a
+log file, or a folder with one log per episode. `--decide` picks the logged
+question when there are several, and `--questions` reads its wording and options
+from the file `zils fit scan` writes. Each episode stays in one split, the logged
+state is kept as JSON, and repeats of an earlier situation are left out and
+counted. `zils fit train` does this and submits in one step.
+
 The rules match the zils.ai training page, so the same file gives the same
 splits in both: one choice question per row, about 70/15/15 by rows, every
 answer in all three splits, and identical rows refused. The command prints the

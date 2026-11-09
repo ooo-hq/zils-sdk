@@ -271,18 +271,7 @@ def prepare(
         entry["labels"].add(answer)
     splits = split_groups(list(groups.values()), outcomes)
 
-    out = Path(out) if out else Path("zils-training") / name
-    files = {s: out / f"{s}.jsonl" for s in SPLITS}
-    existing = [str(p) for p in files.values() if p.exists()]
-    if existing:
-        raise ValueError(
-            f"{', '.join(existing)} already exists. Choose another --out folder; nothing was written."
-        )
-    out.mkdir(parents=True, exist_ok=True)
-    for split, path in files.items():
-        with path.open("x", encoding="utf-8") as handle:
-            handle.writelines(json.dumps(case, allow_nan=False) + "\n" for case in splits[split])
-    checked = training_data.check(files)
+    files, checked = _write_splits(out, name, splits)
     return {
         "name": name,
         "decide": decide,
@@ -302,6 +291,188 @@ def prepare(
             o: {s: sum(1 for c in splits[s] if c["label"] == o) for s in SPLITS} for o in outcomes
         },
         "cases": len(groups),
+        "files": {s: str(p) for s, p in files.items()},
+        "counts": {s: v["count"] for s, v in checked["files"].items()},
+        "ceiling_usd": checked["ceiling_usd"],
+        "next": (
+            f"zils train submit --name {name} --train {files['train']} --calibration {files['calibration']} "
+            f"--test {files['test']} --min-accuracy 0.8 --min-brier-improvement 0.01 --max-cost {checked['ceiling_usd']:g} "
+            "--allow-training-data-export"
+        ),
+    }
+
+
+def _write_splits(out, name, splits):
+    """Write the three splits (never overwriting) and run the service's own dataset check on them."""
+    out = Path(out) if out else Path("zils-training") / name
+    files = {s: out / f"{s}.jsonl" for s in SPLITS}
+    existing = [str(p) for p in files.values() if p.exists()]
+    if existing:
+        raise ValueError(
+            f"{', '.join(existing)} already exists. Choose another --out folder; nothing was written."
+        )
+    out.mkdir(parents=True, exist_ok=True)
+    for split, path in files.items():
+        with path.open("x", encoding="utf-8") as handle:
+            handle.writelines(json.dumps(case, allow_nan=False) + "\n" for case in splits[split])
+    return files, training_data.check(files)
+
+
+def is_log(path) -> bool:
+    """A folder of logs, or a JSON Lines file whose first entry is a `record` line ({question, state, answer})."""
+    path = Path(path)
+    if path.is_dir():
+        return True
+    if path.suffix.lower() not in (".jsonl", ".ndjson") or not path.is_file():
+        return False
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                try:
+                    entry = json.loads(line)
+                except ValueError:
+                    return False
+                return isinstance(entry, dict) and {"question", "state", "answer"} <= set(entry)
+    return False
+
+
+def _log_entries(source):
+    """(episode, entry, place) for every logged decision: one file per episode in a folder, or an "episode" field."""
+    source = Path(source)
+    files = sorted(source.glob("*.jsonl")) if source.is_dir() else [source]
+    if not files:
+        raise ValueError(f"No .jsonl decision logs in {source}.")
+    for path in files:
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+                if (
+                    not isinstance(entry["question"], str)
+                    or "state" not in entry
+                    or "answer" not in entry
+                ):
+                    raise KeyError
+            except (ValueError, KeyError, TypeError):
+                raise ValueError(
+                    f"{path.name}:{number} is not a decision log entry: each line needs question, state and answer."
+                ) from None
+            episode = entry.get("episode", path.stem if source.is_dir() else None)
+            yield episode, entry, f"{path.name}:{number}"
+
+
+def prepare_log(source, *, questions=None, decide=None, question=None, out=None, name=None) -> dict:
+    """Training splits from decision logs written by `record` (or the same shape by hand).
+
+    Each episode (a log file in a folder, or an "episode" field) stays in one split, so the test measures new
+    episodes. The program's state is kept as JSON. A situation already logged earlier is left out and counted: the
+    service refuses one situation in two splits. `questions` is fit's questions file ({id: {type, instructions,
+    criteria}}); without it the options are the answers seen and the question id is the wording. Cases use the
+    current training layout: the wording in state.decision, the program's state in state.information."""
+    entries = list(_log_entries(source))
+    asked = sorted({entry["question"] for _, entry, _ in entries})
+    if decide is None:
+        if len(asked) != 1:
+            raise ValueError(
+                f"The logs answer {len(asked)} questions ({', '.join(asked)}). Train one at a time: pass --decide "
+                "with one of them."
+            )
+        decide = asked[0]
+    elif decide not in asked:
+        raise ValueError(f"No logged answers for “{decide}”. Logged questions: {', '.join(asked)}.")
+    spec = (questions or {}).get(decide) or {}
+    kind = spec.get("type", "choice")
+    if kind not in ("choice", "noul"):
+        raise ValueError(
+            f"“{decide}” is a {kind} question; training from logs takes choice and yes/no (noul) questions today."
+        )
+    criteria = spec.get("criteria")
+    listed = (
+        list(criteria)
+        if kind == "choice" and isinstance(criteria, dict) and "TODO option" not in criteria
+        else None
+    )
+    instructions = spec.get("instructions")
+    wording = (
+        question or (instructions if instructions and instructions != "TODO" else decide)
+    ).strip()
+    if not wording or len(wording) > 1000:
+        raise ValueError("Describe the decision in 1–1,000 characters.")
+
+    def label(answer, place):
+        if kind == "noul":
+            if isinstance(answer, str):
+                answer = answer.strip().lower() in ("true", "yes", "y", "1")
+            return "true" if answer else "false"
+        text = str(answer)
+        if listed is not None and text not in listed:
+            raise ValueError(
+                f"{place}: the answer “{text}” for “{decide}” is not one of its options ({', '.join(listed)})."
+            )
+        return text
+
+    seen, repeats, conflicts, groups, outcomes = {}, 0, 0, {}, set()
+    for episode, entry, place in entries:
+        if entry["question"] != decide:
+            continue
+        answer = label(entry["answer"], place)
+        key = _compact(entry["state"])
+        if key in seen:
+            repeats += 1
+            conflicts += seen[key] != answer
+            continue
+        seen[key] = answer
+        group_id = f"group-{_digest(str(episode) if episode is not None else key)}"
+        case = {
+            "id": f"case-{_digest(decide + chr(10) + key)}",
+            "group_id": group_id,
+            "family": "",  # set once the name is known
+            "state": {"decision": wording, "information": entry["state"]},
+            "question": {"type": "noul"} if kind == "noul" else None,
+            "label": answer,
+        }
+        if len(json.dumps(case).encode()) > training_data.MAX_CASE:
+            raise ValueError(f"{place}: this state is over 128 KiB. Log less of it.")
+        outcomes.add(answer)
+        entry_group = groups.setdefault(group_id, {"id": group_id, "rows": [], "labels": set()})
+        entry_group["rows"].append(case)
+        entry_group["labels"].add(answer)
+    options = listed or sorted(outcomes)
+    if len(outcomes) < 2:
+        raise ValueError(
+            f"The logs give only one answer for “{decide}”; a decision needs at least two."
+        )
+    if len(options) > MAX_OUTCOMES:
+        raise ValueError(
+            f"“{decide}” has {len(options):,} different answers; at most {MAX_OUTCOMES} train."
+        )
+    if not name:
+        # A logged question is usually an id (is_urgent); a whole sentence gets its first words, cut at a word.
+        name = _slug(decide)
+        if len(name) > 40:
+            name = name[:41].rsplit("-", 1)[0]
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", name):
+        raise ValueError("Use a name with 1–64 lowercase letters, digits or hyphens.")
+    for group in groups.values():
+        for case in group["rows"]:
+            case["family"] = name
+            if case["question"] is None:
+                case["question"] = {"type": "choice", "criteria": {o: o for o in options}}
+    splits = split_groups(list(groups.values()), sorted(outcomes))
+    files, checked = _write_splits(out, name, splits)
+    return {
+        "name": name,
+        "decide": decide,
+        "question": wording,
+        "type": kind,
+        "answers": {
+            o: {s: sum(1 for c in splits[s] if c["label"] == o) for s in SPLITS}
+            for o in sorted(outcomes)
+        },
+        "episodes": len(groups),
+        "repeats_left_out": repeats,
+        "conflicting_repeats": conflicts,
         "files": {s: str(p) for s, p in files.items()},
         "counts": {s: v["count"] for s, v in checked["files"].items()},
         "ceiling_usd": checked["ceiling_usd"],

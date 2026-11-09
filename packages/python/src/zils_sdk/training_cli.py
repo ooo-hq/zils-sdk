@@ -103,10 +103,23 @@ def add_parser(subparsers):
             )
     prepare = commands.add_parser(
         "prepare",
-        help="Turn a CSV, TSV, JSON or JSONL file into train/calibration/test splits (no login, nothing sent)",
+        help="Turn a CSV, TSV, JSON or JSONL file, or decision logs from record(), into train/calibration/test "
+        "splits (no login, nothing sent)",
     )
-    prepare.add_argument("input", type=Path, help="Examples: one row or object per example")
-    prepare.add_argument("--decide", required=True, help="Column holding the right answer")
+    prepare.add_argument(
+        "input",
+        type=Path,
+        help="Examples: one row or object per example; or a record() log, or a folder of them (one per episode)",
+    )
+    prepare.add_argument(
+        "--decide",
+        help="Column holding the right answer; for logs, the logged question (needed when they hold several)",
+    )
+    prepare.add_argument(
+        "--questions",
+        type=Path,
+        help="For logs: the questions file from zils fit scan (wording and options)",
+    )
     prepare.add_argument(
         "--read",
         action="append",
@@ -175,9 +188,64 @@ def render_prepared(result):
     return "\n".join(lines)
 
 
+def load_questions(path):
+    if path is None:
+        return None
+    questions = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(questions, dict) or not all(isinstance(q, dict) for q in questions.values()):
+        raise ValueError(
+            f"{path} is not a questions file ({{id: {{type, instructions, criteria}}}})."
+        )
+    return questions
+
+
+def prepare_log(args):
+    if getattr(args, "read", None) or getattr(args, "group", None):
+        raise ValueError(
+            "--read and --group are for tables. In a log the state is what the model reads, and each episode "
+            "(a file in the folder, or an episode field) stays together."
+        )
+    return training_prepare.prepare_log(
+        args.input if hasattr(args, "input") else args.log,
+        questions=load_questions(args.questions),
+        decide=args.decide,
+        question=args.question,
+        out=args.out,
+        name=args.name,
+    )
+
+
+def render_prepared_log(result):
+    named = result["decide"] if result["decide"] != result["question"] else result["name"]
+    lines = [
+        f"Wrote {sum(result['counts'].values())} decisions for “{named}” from {result['episodes']} "
+        "episodes: " + ", ".join(f"{n} {s}" for s, n in result["counts"].items()),
+        "Question: " + result["question"],
+        "Answers: " + ", ".join(result["answers"]),
+    ]
+    if result["repeats_left_out"]:
+        conflicting = result["conflicting_repeats"]
+        lines.append(
+            f"Left out {result['repeats_left_out']} repeats of a situation already logged"
+            + (f" ({conflicting} with a different answer)" if conflicting else "")
+            + "."
+        )
+    lines += [
+        f"Training will cost at most ${result['ceiling_usd']:.2f}.",
+        "Next: " + result["next"],
+    ]
+    return "\n".join(lines)
+
+
 def run(args):
     action = args.training_command
+    if action == "prepare" and training_prepare.is_log(args.input):
+        result = prepare_log(args)
+        print(json.dumps(result, ensure_ascii=False) if args.json else render_prepared_log(result))
+        return
     if action == "prepare":  # local only: no login and nothing sent
+        if not args.decide:
+            raise ValueError("Name the column holding the right answer with --decide.")
         result = training_prepare.prepare(
             args.input,
             args.decide,

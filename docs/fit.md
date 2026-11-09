@@ -122,5 +122,30 @@ report measures whether Zils can replace that call without changing behaviour.
 To measure who is right, put verified answers (real outcomes or human labels) in
 the log's `answer` field.
 
-If a question misses, the same logged inputs, with verified answers, are training
-data for `zils train`.
+If a question misses, train a model on the same log (step 4).
+
+## 4. Train
+
+```sh
+zils fit train --log fit-log.jsonl --questions questions.json --decide is_urgent \
+  --min-accuracy 0.8 --min-brier-improvement 0.01 --tier open --allow-open-tier-training \
+  --allow-training-data-export
+```
+
+It turns the logged answers for one question into the three training splits and
+submits them, with the same options as `zils train submit` (pass `--tier private`
+and `--max-cost` for a paid run on Zils workers only). The question's wording and
+options come from `questions.json`; the logged state is kept as it is. Choice and
+yes/no questions train today.
+
+For games, sessions or conversations, log each episode to its own file (set
+`ZILS_FIT_LOG` per episode) and pass the folder as `--log`, or add an `episode`
+field to each line: an episode's decisions stay in one split, so the test
+measures new episodes. A situation already logged earlier is left out and
+counted, because the same input in two splits would grade a memorised answer.
+
+When `zils train status` shows the API model, measure it on the same log:
+
+```sh
+zils fit run --questions questions.json --log fit-log.jsonl --model <API model id>
+```

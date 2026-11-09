@@ -32,6 +32,48 @@ def add_parser(subparsers):
         "agent", help="Install the zils-fit skill so your coding agent can do the evaluation"
     )
     agent.add_argument("path", nargs="?", default=".", type=Path, help="Project folder (.)")
+    train = commands.add_parser(
+        "train", help="Train a model on your logged decisions (prepares the splits, then submits)"
+    )
+    train.add_argument(
+        "--log",
+        type=Path,
+        default=Path("fit-log.jsonl"),
+        help="A record() log, or a folder of them",
+    )
+    train.add_argument(
+        "--questions", type=Path, help="Questions JSON from scan (wording and options)"
+    )
+    train.add_argument(
+        "--decide", help="Which logged question to train (needed when the log holds several)"
+    )
+    train.add_argument("--question", help="The decision in words, if not in the questions file")
+    train.add_argument("--name", help="Training name (default from the question)")
+    train.add_argument(
+        "--out", type=Path, help="Where to write the splits (default zils-training/<name>)"
+    )
+    train.add_argument("--min-accuracy", type=float, required=True)
+    train.add_argument("--min-brier-improvement", type=float, required=True)
+    train.add_argument(
+        "--max-cost", type=float, help="Refuse before sending if it could cost more (US dollars)"
+    )
+    train.add_argument(
+        "--allow-training-data-export",
+        action="store_true",
+        help="Permit copying examples to approved workers",
+    )
+    train.add_argument(
+        "--tier",
+        choices=("open", "private"),
+        help="open: free, network miners; private: paid, Zils workers",
+    )
+    train.add_argument(
+        "--allow-open-tier-training",
+        action="store_true",
+        help="With --tier open: permit sending the training split to miners",
+    )
+    train.add_argument("--timeout", type=float, default=30)
+    train.add_argument("--json", action="store_true", help="Write the result JSON to stdout")
     find = commands.add_parser("scan", help="List model calls that make typed decisions")
     find.add_argument("path", nargs="?", default=".", type=Path)
     find.add_argument("--questions", type=Path, help="Write draft Zils questions (JSON) here")
@@ -286,7 +328,36 @@ def _agent(args):
     print('Person: ask your coding agent "See where Zils fits in this repo."')
 
 
+def _train(args):
+    from .training import TrainingClient
+    from .training_cli import prepare_log, render, render_prepared_log
+
+    prepared = prepare_log(args)
+    print(render_prepared_log(prepared), file=sys.stderr)
+    job = TrainingClient(timeout=args.timeout).submit(
+        prepared["name"],
+        prepared["files"],
+        {"min_accuracy": args.min_accuracy, "min_brier_improvement": args.min_brier_improvement},
+        args.allow_training_data_export,
+        max_cost_usd=args.max_cost,
+        tier=args.tier,
+        allow_open_tier_training=args.allow_open_tier_training,
+    )
+    if args.json:
+        print(json.dumps({"prepared": prepared, "job": job}, ensure_ascii=False))
+        return
+    print(render(job))
+    questions = f" --questions {args.questions}" if args.questions else ""
+    print(
+        f"When it is ready (zils train status {job['id']}), measure it on the same log: "
+        f"zils fit run --log {args.log}{questions} --model <its API model id>"
+    )
+
+
 def run(args):
+    if args.fit_command == "train":
+        _train(args)
+        return
     if args.fit_command == "agent":
         _agent(args)
         return
