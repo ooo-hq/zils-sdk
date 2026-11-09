@@ -122,6 +122,8 @@ Choose who trains the job with `--tier`:
   An account can start 3 open jobs in any 24 hours, each up to 5,000,000
   training tokens, and the open tier as a whole has a daily limit; past either,
   train the job privately.
+  An open-tier model is served by Zils and used through the API; it cannot be
+  downloaded.
 
 Add `--max-cost 5` to refuse a private job, before anything is sent, when it could
 cost more than $5. Open jobs are free, so the limit does not apply to them. The service bills each train-split prompt token once at
@@ -193,7 +195,7 @@ zils train cancel JOB_ID
 zils train cancel JOB_ID --yes --json
 ```
 
-Downloads require an accepted supported z3 result, or an older accepted H2O or JevK5 result. The CLI verifies provider/job/file
+Downloads require an accepted supported z3 result from a private job, or an older accepted H2O or JevK5 result. Models trained on the open tier are served by Zils and used through the API; they cannot be downloaded. The CLI verifies provider/job/file
 paths, release identity, model metadata and the backend-compatible checkpoint
 SHA-256 before publishing four files to a **new** directory. Existing paths are
 never overwritten. The filesystem must support hard links within the destination's

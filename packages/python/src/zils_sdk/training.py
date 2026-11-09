@@ -697,6 +697,11 @@ class TrainingClient:
             or not supported_model(job.get("model"))
         ):
             raise ValueError("This job has no accepted supported text model to download.")
+        if job.get("tier") == "open":
+            raise ValueError(
+                "Models trained on the open tier are served by Zils: call this one through the Zils API"
+                " (zils train status shows its model ID). Model files come with private training."
+            )
         grants = self._request(session, "GET", f"/v1/jobs/{job_id}/downloads").get("downloads")
         if not isinstance(grants, dict) or set(grants) != set(ARTIFACTS):
             raise ValueError("The service returned an unexpected model file list.")

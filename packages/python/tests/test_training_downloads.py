@@ -201,6 +201,15 @@ class DownloadsTests(unittest.TestCase):
                 client.download(job["id"], self.root / "absent")
             self.assertFalse(any("/storage/" in call[1] for call in fixture.calls))
 
+    def test_an_open_tier_model_is_used_through_the_api_not_downloaded(self):
+        with training_server() as fixture:
+            job, _ = accepted(fixture)
+            job["tier"] = "open"
+            with self.assertRaisesRegex(ValueError, "open tier.*Zils API.*private training"):
+                self.client(fixture).download(job["id"], self.out)
+            self.assertFalse(self.out.exists())
+            self.assertFalse(any(call[1].endswith("/downloads") for call in fixture.calls))
+
     def test_status_separates_training_acceptance_activation_and_readiness(self):
         with training_server() as fixture:
             job, _ = accepted(fixture)
