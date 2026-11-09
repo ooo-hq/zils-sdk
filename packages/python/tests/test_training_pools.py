@@ -181,7 +181,12 @@ class ServiceWithoutPoolsTests(unittest.TestCase):
             self.assertIn(result["id"], fixture.jobs)
 
     def test_a_refused_create_keeps_the_reason_the_sdk_knows(self):
-        for status, expected in ((400, "HTTP 400"), (401, "Run zils login"), (402, "Add credit")):
+        for status, expected in (
+            (400, "HTTP 400"),
+            (401, "Run zils login"),
+            (402, "Add credit"),
+            (429, "3 open-tier runs per account"),
+        ):
             with training_server() as fixture:
                 fixture.create_error = (status, {"error": "remote text the SDK never shows"})
                 with self.assertRaises(TrainingError) as raised:
