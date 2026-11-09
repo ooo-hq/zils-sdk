@@ -23,6 +23,8 @@ TOOLS = {
     "train_list",
     "train_status",
     "train_cancel",
+    "fit_scan",
+    "fit_run",
 }
 
 
