@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.19 — 2026-11-11
+
+- `zils train prepare` keeps rows from one case together without `--group`. It
+  uses a column named like a case (`conversation_id`, `thread_id`, `ticket_id`,
+  `customer_id`, `case_id` and similar) when every row has a value and values
+  repeat, and prints which column it used. Before, every row was its own case
+  unless `--group` was given, so replies from one thread could land in both
+  training and test. A column named in `--read` is never taken; `--group` still
+  chooses the column. The MCP `train_prepare` tool does the same.
+
 ## 0.4.18 — 2026-11-09
 
 - Open-tier limits get a plain answer. When the service refuses an open-tier
