@@ -1,0 +1,25 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "ai.zils/zils",
+  "title": "Zils",
+  "description": "Train a custom decision model on your data and call it: yes/no, choice and score answers.",
+  "version": "0.4.19",
+  "websiteUrl": "https://zils.ai",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@zils/cli",
+      "version": "0.4.19",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ]
+    }
+  ]
+}

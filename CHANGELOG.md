@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- The MCP server can be listed in the official MCP Registry as `ai.zils/zils`.
+  `packages/cli/server.json` describes it (the npm package, run as
+  `npx -y @zils/cli mcp` over stdio), and the npm package declares the same name
+  in `mcpName`, which the Registry checks. The listing itself is published
+  after the next npm release.
+
 ## 0.4.19 — 2026-11-11
 
 - `zils train prepare` keeps rows from one case together without `--group`. It
