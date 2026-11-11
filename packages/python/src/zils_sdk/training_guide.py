@@ -18,7 +18,9 @@ Call train_prepare with:
   agent who handled a ticket, the final status), and anything filled in after the decision (resolution time,
   satisfaction score). train_prepare lists suspected give-aways under "leaks"; drop them unless the user says the
   value really is known when deciding.
-- group: the case column, so one customer's rows stay in one split and the test is honest.
+- group: the case column, so one customer's rows stay in one split and the test is honest. Left out, a column
+  named like a case (conversation_id, customer_id, ...) is used when its values repeat; "group" and "note" in
+  the result say which. Name it yourself when the column has another name.
 Then tell the user which columns the model reads and which it skips, and point out any answer with few test
 examples in the "answers" counts: results for it will be rough.
 

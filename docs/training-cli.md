@@ -69,7 +69,10 @@ zils train prepare tickets.csv --decide team --read message --read channel --gro
   them. Leave out anything only known after the decision, such as a resolution
   time: `prepare` cannot tell those apart, so check what it reads.
 - `--group` names the case each row belongs to (a customer, a thread), so
-  related rows stay in one split. Without it, each row is its own case.
+  related rows stay in one split. Without it, `prepare` uses a column named like
+  a case (`conversation_id`, `thread_id`, `ticket_id`, `customer_id`, `case_id`
+  and similar) when every row has a value and values repeat, and prints which
+  column it used. If there is none, each row is its own case.
 - `--name` and `--question` set the training name and the decision in words;
   `--out` sets the folder (default `zils-training/<name>`). Existing files are
   never overwritten.
