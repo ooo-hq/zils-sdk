@@ -133,7 +133,8 @@ def build_server():
 
         A table (CSV, TSV, JSON or JSONL rows): decide is the column holding the right answer. read lists the
         columns the model may use; leave out IDs and anything only known after the decision (for example a
-        resolution time). group names the case each row belongs to, so related rows stay in one split. leaks
+        resolution time). group names the case each row belongs to, so related rows stay in one split; left out, a column
+        named like a case (conversation_id, customer_id, ...) whose values repeat is used and named in note. leaks
         lists columns that give the answer away; without read they are left out, with read they are kept.
         Decision logs from record() (a log, or a folder with one log per episode): decide picks the logged
         question when there are several, questions is fit's questions object or file (wording and options);

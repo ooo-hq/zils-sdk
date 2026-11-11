@@ -21,6 +21,12 @@ MAX_OUTCOMES = 255
 MIN_GROUPS_PER_ANSWER = 3  # one each for train, calibration and test
 TARGET = {"train": 0.7, "calibration": 0.15, "test": 0.15}
 ID_NAME = re.compile(r"(^|_)(id|uuid|key)($|_)", re.IGNORECASE)
+# The column names the website takes for a case column (web lib/train-table.ts and lib/training-review.ts).
+GROUP_NAME = re.compile(
+    r"^((customer|account|user|client|case|conversation|thread|order|ticket|document)[_ ]?id"
+    r"|case_group|group_id|source_group)$",
+    re.IGNORECASE,
+)
 
 
 def _text(value):
@@ -180,6 +186,20 @@ def _slug(text: str) -> str:
     )
 
 
+def guess_group(headers: list[str], rows: list[dict[str, str]], taken) -> str | None:
+    """The case column when none is named: a recognised name, a value in every row, and values that repeat.
+
+    One value per row is just an ID, so it groups nothing.
+    """
+    for column in headers:
+        if column in taken or not GROUP_NAME.match(column.strip()):
+            continue
+        values = [row[column] for row in rows]
+        if all(values) and len(set(values)) < len(values):
+            return column
+    return None
+
+
 def prepare(
     source, decide: str, *, out=None, read=None, group=None, name=None, question=None
 ) -> dict:
@@ -190,6 +210,9 @@ def prepare(
         raise ValueError(f"“{decide}” is not a column. Columns: {', '.join(headers)}.")
     if group is not None and group not in headers:
         raise ValueError(f"“{group}” is not a column. Columns: {', '.join(headers)}.")
+    guessed = group is None
+    if guessed:
+        group = guess_group(headers, rows, {decide, *(read or ())})
     if read:
         missing = [c for c in read if c not in headers]
         if missing:
@@ -269,7 +292,15 @@ def prepare(
         entry = groups.setdefault(group_id, {"id": group_id, "rows": [], "labels": set()})
         entry["rows"].append(case)
         entry["labels"].add(answer)
-    splits = split_groups(list(groups.values()), outcomes)
+    try:
+        splits = split_groups(list(groups.values()), outcomes)
+    except ValueError as refusal:
+        if not (guessed and group):
+            raise
+        raise ValueError(
+            f"{refusal} Rows with the same “{group}” were kept together as one case; "
+            "pass --group to choose another column."
+        ) from None
 
     files, checked = _write_splits(out, name, splits)
     return {
@@ -281,6 +312,10 @@ def prepare(
         "group": group,
         **(
             {}
+            if group and not guessed
+            else {
+                "note": f"No case column given: rows with the same “{group}” are kept in one split. Pass --group to choose another column."
+            }
             if group
             else {
                 "note": "No case column given: each row is treated as a separate case. If several rows belong to one case (one customer, one thread), pass it as the group."

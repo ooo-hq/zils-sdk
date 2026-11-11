@@ -114,6 +114,61 @@ class PrepareTests(unittest.TestCase):
             for r in rows:
                 self.assertEqual(seen.setdefault(r["group_id"], split), split)
 
+    def threads(self):
+        """The tickets, with the conversation each message came from in a conversation_id column."""
+        rows = [{**row, "conversation_id": row.pop("case")} for row in tickets()]
+        return write_csv(self.root / "threads.csv", rows)
+
+    def test_a_case_column_is_found_by_its_name_when_none_is_given(self):
+        result = self.prepare(self.threads(), read=["message"])
+        self.assertEqual(result["group"], "conversation_id")
+        self.assertEqual(result["cases"], 15)
+        self.assertIn("conversation_id", result["note"])
+        self.assertIn("--group", result["note"])
+        seen = {}
+        for split in training_data.SPLITS:
+            for r in read_split(self.root / "out", split):
+                self.assertEqual(seen.setdefault(r["group_id"], split), split)
+        # Found or named, the splits are the same.
+        self.prepare(
+            self.threads(), read=["message"], group="conversation_id", out=self.root / "named"
+        )
+        for split in training_data.SPLITS:
+            self.assertEqual(
+                (self.root / "out" / f"{split}.jsonl").read_bytes(),
+                (self.root / "named" / f"{split}.jsonl").read_bytes(),
+            )
+
+    def test_a_case_column_is_not_guessed_against_the_evidence(self):
+        # ticket_id has one value per row: an ID, not a case. "case" is not a name it recognises.
+        result = self.prepare(read=["message"])
+        self.assertIsNone(result["group"])
+        self.assertEqual(result["cases"], 30)
+        self.assertIn("separate case", result["note"])
+        # A column the model is told to read is not taken as the case column.
+        read = self.prepare(
+            self.threads(), read=["message", "conversation_id"], out=self.root / "read"
+        )
+        self.assertIsNone(read["group"])
+        # A column with gaps cannot say which case every row belongs to.
+        rows = [{**row, "thread_id": row.pop("case")} for row in tickets()]
+        rows[0]["thread_id"] = ""
+        gaps = self.prepare(
+            write_csv(self.root / "gaps.csv", rows), read=["message"], out=self.root / "gaps"
+        )
+        self.assertIsNone(gaps["group"])
+
+    def test_a_refusal_after_a_guess_names_the_guessed_column(self):
+        # All Sales tickets come from one customer, so Sales cannot reach all three splits.
+        rows = [
+            {**row, "customer_id": "one" if row["team"] == "Sales" else row["case"]}
+            for row in tickets()
+        ]
+        with self.assertRaises(ValueError) as caught:
+            self.prepare(write_csv(self.root / "one.csv", rows), read=["message"])
+        self.assertIn("customer_id", str(caught.exception))
+        self.assertIn("--group", str(caught.exception))
+
     def test_the_same_file_always_gives_the_same_splits(self):
         self.prepare(read=["message"], group="case", out=self.root / "a")
         self.prepare(read=["message"], group="case", out=self.root / "b")
