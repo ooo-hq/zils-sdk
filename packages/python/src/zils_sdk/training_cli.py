@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import training_prepare
+from . import training_guide, training_prepare
 from .account import identifier
 from .training import TrainingClient
 
@@ -101,6 +101,10 @@ def add_parser(subparsers):
                 required=True,
                 help="New output directory; existing paths are never overwritten",
             )
+    commands.add_parser(
+        "guide",
+        help="Print the step-by-step training guide for a coding agent (no login, nothing sent)",
+    )
     prepare = commands.add_parser(
         "prepare",
         help="Turn a CSV, TSV, JSON or JSONL file, or decision logs from record(), into train/calibration/test "
@@ -239,6 +243,9 @@ def render_prepared_log(result):
 
 def run(args):
     action = args.training_command
+    if action == "guide":
+        print(training_guide.command_line(), end="")
+        return
     if action == "prepare" and training_prepare.is_log(args.input):
         result = prepare_log(args)
         print(json.dumps(result, ensure_ascii=False) if args.json else render_prepared_log(result))

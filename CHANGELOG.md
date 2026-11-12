@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `zils train guide` prints the step-by-step training guide for a coding agent.
+  It is the guide the MCP `train_guide` tool returns, with a short list of which
+  `zils` command stands in for each MCP tool. Agents that have no MCP server
+  (skills installed with `npx skills add`, Pi) can now follow the whole training
+  path from a shell. No login, nothing sent.
+
 ## 0.4.20 — 2026-11-11
 
 - The MCP server can be listed in the official MCP Registry as `ai.zils/zils`.

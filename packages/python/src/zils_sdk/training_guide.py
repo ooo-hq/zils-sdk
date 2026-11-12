@@ -1,4 +1,23 @@
-"""The training walkthrough the MCP server's train_guide tool returns to an agent that has never used Zils."""
+"""The training walkthrough for an agent that has never used Zils: the MCP server's train_guide tool returns
+GUIDE, and `zils train guide` prints it after COMMANDS for agents working from a shell."""
+
+COMMANDS = """\
+# From a shell
+
+The guide below names the Zils MCP tools. Without them, each step is a `zils` command, and a tool's arguments
+are flags of the same name (min_accuracy is --min-accuracy; max_cost_usd is --max-cost). Add --help to any
+command for its flags. Never put a key in a command; sign in with `zils login`.
+
+- train_prepare: `zils train prepare FILE --decide COLUMN`. It prints the cost ceiling and the submit command.
+- train_check: no command of its own. `zils train prepare` reports the ceiling, and `zils train submit` checks
+  the files and refuses before sending if the job could cost more than --max-cost.
+- train_submit: `zils train submit`.
+- train_list, train_status, train_cancel: `zils train list`, `zils train status JOB_ID` (add --watch to wait),
+  `zils train cancel JOB_ID`.
+- fit_scan, fit_run: `zils fit scan`, `zils fit run`.
+- decide: `zils decide`.
+
+"""
 
 GUIDE = """\
 # Training a Zils model for the user
@@ -77,3 +96,8 @@ An accepted model has an API model id (train_status shows it). Call it with deci
 decide needs an inference API key, separate from the training sign-in: the user runs `zils login --api-key`
 (or creates a key in the Zils dashboard). Each decide call is billed per input token.
 """
+
+
+def command_line():
+    """What `zils train guide` prints."""
+    return COMMANDS + GUIDE
