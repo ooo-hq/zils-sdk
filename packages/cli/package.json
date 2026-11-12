@@ -1,6 +1,6 @@
 {
   "name": "@zils/cli",
-  "version": "0.4.19",
+  "version": "0.4.20",
   "description": "Sign in, train, and call Zils decision models from your terminal",
   "license": "MIT",
   "mcpName": "ai.zils/zils",
