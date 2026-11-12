@@ -48,3 +48,66 @@ class GuideTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def zils(*args):
+    """The command line with no saved login, so the test proves the guide needs none."""
+    import os
+    import subprocess
+    import sys
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as home:
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("ZILS_", "TYPESAFE_"))}
+        env["ZILS_CONFIG_PATH"] = os.path.join(home, "config.json")
+        return subprocess.run(
+            [sys.executable, "-m", "zils_sdk.cli", *args],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=60,
+        )
+
+
+class CommandLineGuideTests(unittest.TestCase):
+    """Agents without MCP (skills installed by skills.sh, Pi) read the same guide from the shell."""
+
+    def test_zils_train_guide_prints_the_whole_guide_without_a_login(self):
+        result = zils("train", "guide")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        from zils_sdk import training_guide
+
+        self.assertIn(training_guide.GUIDE, result.stdout)
+
+    def test_it_says_which_command_stands_in_for_each_tool(self):
+        text = zils("train", "guide").stdout
+        head = text[: text.index("# Training a Zils model for the user")]
+        for command in (
+            "zils train prepare",
+            "zils train submit",
+            "zils train list",
+            "zils train status",
+            "zils train cancel",
+            "zils fit scan",
+            "zils fit run",
+            "zils decide",
+            "--max-cost",
+            "--help",
+        ):
+            self.assertIn(command, head)
+
+    def test_every_command_it_names_exists(self):
+        import re
+
+        from zils_sdk import training_guide
+
+        named = set(
+            re.findall(r"`(zils (?:train|fit) [a-z]+|zils decide)", training_guide.COMMANDS)
+        )
+        self.assertGreaterEqual(len(named), 8)
+        for command in sorted(named):
+            result = zils(*command.split()[1:], "--help")
+            self.assertEqual(result.returncode, 0, command + ": " + result.stderr)
+
+    def test_the_guide_is_listed_in_the_train_help(self):
+        self.assertIn("guide", zils("train", "--help").stdout)

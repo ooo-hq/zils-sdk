@@ -49,6 +49,18 @@ privately enter an existing key, or `zils login --api-key -` to read from stdin.
 `zils logout` removes both local credential types, retaining recovery receipts.
 It does not revoke remote sessions/keys, delete jobs, or unset environment keys.
 
+## Hand the steps to a coding agent
+
+`zils train guide` prints the whole training walkthrough for a coding agent:
+what to ask you, how to prepare the data, the pass bars, open or private,
+submitting, waiting and reporting. It needs no login and sends nothing. The MCP
+`train_guide` tool returns the same guide; the command adds which `zils` command
+stands in for each MCP tool, for agents that work from a shell.
+
+```bash
+zils train guide
+```
+
 ## Prepare splits from a spreadsheet or export
 
 `zils train prepare` turns one file of past examples into the three splits. It
