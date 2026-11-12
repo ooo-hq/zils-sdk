@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.21 — 2026-11-11
 
 - `zils train guide` prints the step-by-step training guide for a coding agent.
   It is the guide the MCP `train_guide` tool returns, with a short list of which

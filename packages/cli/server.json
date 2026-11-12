@@ -3,13 +3,13 @@
   "name": "ai.zils/zils",
   "title": "Zils",
   "description": "Train a custom decision model on your data and call it: yes/no, choice and score answers.",
-  "version": "0.4.20",
+  "version": "0.4.21",
   "websiteUrl": "https://zils.ai",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@zils/cli",
-      "version": "0.4.20",
+      "version": "0.4.21",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
