@@ -23,7 +23,7 @@ from ._ranking import RankedItem
 from .client import AsyncZilsClient, RankResult, SystemOneResponse, Usage, ZilsClient
 from .fit import record
 
-__version__ = "0.4.19"
+__version__ = "0.4.20"
 __all__ = [
     "APIError",
     "Answer",
