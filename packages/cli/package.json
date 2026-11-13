@@ -4,7 +4,9 @@
   "description": "Sign in, train, and call Zils decision models from your terminal",
   "license": "MIT",
   "mcpName": "ai.zils/zils",
+  "keywords": ["zils", "cli", "mcp", "mcp-server", "model-context-protocol", "llm", "classification", "text-classification", "decision-models", "fine-tuning", "calibration", "model-merging", "ai-agents", "claude-code"],
   "homepage": "https://zils.ai",
+  "bugs": { "url": "https://github.com/ooo-hq/zils-sdk/issues" },
   "repository": {
     "type": "git",
     "url": "https://github.com/ooo-hq/zils-sdk.git",
