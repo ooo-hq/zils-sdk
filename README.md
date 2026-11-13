@@ -120,11 +120,26 @@ When the shared model is not accurate enough on your question, train one on your
 labeled examples:
 
 ```sh
-zils login        # browser sign-in
-zils train guide  # what to decide before you train
-zils train prepare tickets.csv --decide team --read message --group customer_id
-zils train submit --name ticket-routing --train ... --calibration ... --test ... \
-  --min-accuracy 0.8 --min-brier-improvement 0.01 --allow-training-data-export
+# Sign in with your browser
+zils login
+
+# What to decide before you train
+zils train guide
+
+# Split your labeled export into train, calibration and test files
+zils train prepare tickets.csv \
+  --decide team --read message --group customer_id \
+  --out data
+
+# Start the training job
+zils train submit --name ticket-routing \
+  --train data/train.jsonl \
+  --calibration data/calibration.jsonl \
+  --test data/test.jsonl \
+  --min-accuracy 0.8 --min-brier-improvement 0.01 \
+  --allow-training-data-export
+
+# Follow the job
 zils train status JOB_ID --watch
 ```
 
