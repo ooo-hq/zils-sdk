@@ -1,11 +1,50 @@
-# Zils
+<p align="center">
+  <a href="https://zils.ai">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset=".github/assets/zils-wordmark-periwinkle.svg">
+      <img alt="Zils" src=".github/assets/zils-wordmark-purple.svg" width="200">
+    </picture>
+  </a>
+</p>
 
-Small models for the decisions your app asks an LLM to make: yes or no, pick one
-of a list, a score. Zils answers with a probability, and you can train your own
-model on your data.
+<p align="center">
+  <strong>Small models for the decisions your app asks an LLM to make.</strong><br>
+  Yes or no, pick one of a list, a score: Zils answers with a probability,<br>
+  and you can train your own model on your data.
+</p>
+
+<p align="center">
+  <a href="https://github.com/ooo-hq/zils-sdk/actions/workflows/checks.yml"><img alt="Checks" src="https://github.com/ooo-hq/zils-sdk/actions/workflows/checks.yml/badge.svg?branch=main"></a>
+  <a href="https://www.npmjs.com/package/@zils/cli"><img alt="@zils/cli on npm" src="https://img.shields.io/npm/v/@zils/cli?label=%40zils%2Fcli&color=4b44c8"></a>
+  <a href="https://www.npmjs.com/package/@zils/sdk"><img alt="@zils/sdk on npm" src="https://img.shields.io/npm/v/@zils/sdk?label=%40zils%2Fsdk&color=4b44c8"></a>
+  <a href="https://registry.modelcontextprotocol.io/v0/servers?search=ai.zils/zils"><img alt="MCP Registry: ai.zils/zils" src="https://img.shields.io/badge/MCP%20Registry-ai.zils%2Fzils-8f88ff"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-ff7a2f"></a>
+</p>
+
+<p align="center">
+  <a href="https://zils.ai">Website</a> ·
+  <a href="https://docs.zils.ai">Docs</a> ·
+  <a href="https://docs.zils.ai/getting-started/quickstart">Quickstart</a> ·
+  <a href="https://zils.ai/playground">Playground</a> ·
+  <a href="docs/developer-tools.md">SDK guide</a> ·
+  <a href="https://github.com/ooo-hq/zils-sdk/issues">Issues</a>
+</p>
 
 This repository holds the `zils` command, the Python and TypeScript clients, and
 an MCP server for coding agents.
+
+| Package | What it is | Install | Source |
+|---|---|---|---|
+| [`@zils/cli`](https://www.npmjs.com/package/@zils/cli) | `zils` command and MCP server | `npm install -g @zils/cli` | [packages/cli](packages/cli) |
+| [`@zils/sdk`](https://www.npmjs.com/package/@zils/sdk) | TypeScript/JavaScript client | `npm install @zils/sdk` | [packages/typescript](packages/typescript) |
+| `zils-sdk` | Python client, CLI and MCP server | from this repository ([below](#install)) | [packages/python](packages/python) |
+
+**Contents:** [Where Zils fits](#where-does-zils-fit-in-your-code) ·
+[Replace a classifier prompt](#replace-a-classifier-prompt) ·
+[Train your own model](#train-your-own-model) ·
+[Merge models](#merge-models-on-your-machine) ·
+[Rank](#rank-a-short-list) · [MCP](#use-from-an-agent-mcp) ·
+[Install](#install) · [Mining](#mining) · [Development](#development)
 
 ## Where does Zils fit in your code?
 
@@ -189,18 +228,30 @@ GPU-side install from the [Zils repository](https://github.com/ooo-hq/zils)).
 Without it, those commands print the install line; `zils --help` lists both
 groups.
 
-## Checks
+## Development
 
 ```sh
-python -m pip install -r requirements/dev.txt "./packages/python[mcp]"
+python -m pip install -r requirements/dev.txt "./packages/python[mcp,merge]"
 npm ci --prefix packages/typescript
 make check PYTHON=python
 ```
 
-The suite runs against local HTTP fixtures, CLI subprocesses, typed JavaScript
-checks and MCP protocol tests. It sends no hosted requests and uses no credit.
+`make check` runs ruff (lint and format) on the Python and CLI code, the
+TypeScript tests, and the Python suite in [`packages/python/tests`](packages/python/tests):
+the clients, CLI, MCP protocol, `fit`, `merge`, ranking and training commands,
+against local HTTP fixtures. It sends no hosted requests and uses no credit.
+[CI](.github/workflows/checks.yml) runs the same checks on every pull request,
+then builds the Python package and tests the installed npm CLI
+([`packages/cli/test`](packages/cli/test)).
+
+## Related
+
+- [Zils](https://github.com/ooo-hq/zils): models, miners and validators
+- [zils-agent-skills](https://github.com/ooo-hq/zils-agent-skills): the Claude Code and Cursor plugin
+- [zils-docs](https://github.com/ooo-hq/zils-docs): the source of [docs.zils.ai](https://docs.zils.ai)
+- [zils-brand](https://github.com/ooo-hq/zils-brand): logos and colors
 
 ## Licence
 
-Each package carries its licence and a `THIRD_PARTY_NOTICES.md` for adapted
+MIT. Each package carries its licence and a `THIRD_PARTY_NOTICES.md` for adapted
 code.
