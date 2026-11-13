@@ -27,6 +27,7 @@
   <a href="https://docs.zils.ai/getting-started/quickstart">Quickstart</a> ·
   <a href="https://zils.ai/playground">Playground</a> ·
   <a href="docs/developer-tools.md">SDK guide</a> ·
+  <a href="https://discord.gg/a9PJ9wchGK">Discord</a> ·
   <a href="https://github.com/ooo-hq/zils-sdk/issues">Issues</a>
 </p>
 
@@ -243,6 +244,13 @@ against local HTTP fixtures. It sends no hosted requests and uses no credit.
 [CI](.github/workflows/checks.yml) runs the same checks on every pull request,
 then builds the Python package and tests the installed npm CLI
 ([`packages/cli/test`](packages/cli/test)).
+
+## Community and support
+
+- [Discord](https://discord.gg/a9PJ9wchGK): questions, ideas and announcements
+- [GitHub issues](https://github.com/ooo-hq/zils-sdk/issues): bugs and feature requests for the SDK, CLI and MCP server
+- [Contact form](https://zils.ai/contact): accounts, billing and anything private
+- [X (@zils_ai)](https://x.com/zils_ai): news
 
 ## Related
 
