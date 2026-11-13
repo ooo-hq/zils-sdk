@@ -25,10 +25,9 @@ existing invited account. Keep the terminal open and open email links on the sam
 computer. The fixed local callback uses port **43187**; a remote/headless shell is
 not supported by this flow. Sign-in expires after ten minutes.
 
-Browser sign-in requires the operator to enable the matching
-[platform configuration](https://github.com/ooo-hq/zils-platform/blob/main/docs/cli-training.md)
-and [website approval page](https://github.com/ooo-hq/zils-web/blob/main/docs/cli-sign-in.md).
-The code is not evidence that a hosted service has enabled this beta OAuth flow.
+Browser sign-in works against zils.ai. Another deployment must enable CLI sign-in
+in its own platform configuration and
+[website approval page](https://github.com/ooo-hq/zils-web/blob/main/docs/cli-sign-in.md).
 
 The account session is saved privately to `~/.zils/config.account.json`, separate
 from the inference key in `~/.zils/config.json`. Files use mode `0600` on POSIX;
