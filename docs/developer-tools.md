@@ -60,8 +60,8 @@ Bare `zils login` opens your browser to sign in with your Zils account for train
 It does not create an inference API key. `zils login --api-key` explicitly selects
 the private key prompt described below. See [training sign-in](training-cli.md).
 
-Create a customer API key in the Zils dashboard or through the
-[key-management API](https://github.com/ooo-hq/zils-platform/blob/main/docs/decision-api.md#create-a-key-and-call-the-model).
+Create an API key under **API keys** at [zils.ai/train](https://zils.ai/train); the
+[quickstart](https://docs.zils.ai/getting-started/quickstart) walks through it.
 `zils login --api-key` validates an existing key and stores it locally; it does not create
 an account or issue a key.
 
