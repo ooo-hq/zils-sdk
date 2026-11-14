@@ -16,7 +16,7 @@ ROOT = Path(
     or Path(__file__).resolve().parents[4] / "zils-agent-skills"
 )
 HAVE_PLUGIN = (ROOT / ".claude-plugin" / "plugin.json").is_file()
-CLI = "0.4.21"  # the @zils/cli release this plugin names; raise it with each CLI release
+CLI = "0.4.22"  # the @zils/cli release this plugin names; raise it with each CLI release
 RUN = {"command": "npx", "args": ["-y", f"@zils/cli@{CLI}", "mcp"]}
 
 

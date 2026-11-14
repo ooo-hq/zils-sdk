@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.22 — 2026-11-14
+
+- `train_status` (MCP) and `zils train status --json` say when a job was created,
+  last updated and when a worker started training it. While the job is still
+  going they also give the service's rough estimate: `expected_seconds`, how long
+  the job takes once a worker starts it, and `expected_finish_at`. Waiting for a
+  worker is not part of the estimate.
+- `train_list` (MCP) returns each job once, newest first, with its created time.
+  It returns the latest 20 by default; pass `limit` for more, and `total` says how
+  many there are. It no longer repeats ready models in a second `models` list.
+- The training guide tells agents to quote the service's estimate instead of
+  guessing how long training takes.
+
 ## 0.4.21 — 2026-11-11
 
 - `zils train guide` prints the step-by-step training guide for a coding agent.
