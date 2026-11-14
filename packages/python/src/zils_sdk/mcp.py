@@ -278,13 +278,31 @@ def build_server():
         )
 
     @server.tool(annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True))
-    async def train_list() -> dict[str, Any]:
-        """List the account's recent training jobs and ready models."""
-        return await training(lambda: TrainingClient().list())
+    async def train_list(limit: int = 20) -> dict[str, Any]:
+        """List the account's training jobs, newest first, each with its status and created_at.
+
+        Returns the latest limit jobs and total, the number there are; raise limit to see more. A ready
+        model is a completed job with a model_id.
+        """
+
+        def work():
+            listed = TrainingClient().list()
+            # The service repeats ready models after the jobs, to reach ones older than its job list.
+            seen = {job["id"] for job in listed["jobs"]}
+            rows = listed["jobs"] + [job for job in listed["models"] if job["id"] not in seen]
+            return {"jobs": rows[: max(limit, 1)], "total": len(rows)}
+
+        return await training(work)
 
     @server.tool(annotations=ToolAnnotations(readOnlyHint=True, idempotentHint=True))
     async def train_status(job_id: str) -> dict[str, Any]:
-        """Show one job's status, evaluation and API model id once the adapter is live."""
+        """Show one job's status, evaluation and API model id once the adapter is live.
+
+        created_at and updated_at are always there (UTC). expected_seconds is roughly how long the job takes
+        once a worker starts it; waiting for a worker comes on top and cannot be predicted. started_at appears
+        when a worker begins, and expected_finish_at is then the rough time it will be done. The estimate is
+        usually within a few minutes; grading sometimes adds ten or more.
+        """
         return await training(lambda: TrainingClient().get(identifier(job_id)))
 
     @server.tool(annotations=ToolAnnotations(destructiveHint=True, idempotentHint=True))

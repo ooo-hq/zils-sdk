@@ -240,6 +240,20 @@ def public_status(job):
     }
     if job.get("tier") in ("open", "private"):
         result["tier"] = job["tier"]
+    # started_at is when a worker began training. expected_seconds is the service's rough estimate
+    # of start to finish and expected_finish_at the time that gives; both only while the job is
+    # still going. Older services send none of the three.
+    for key in ("created_at", "updated_at", "started_at", "expected_finish_at"):
+        if key == "expected_finish_at" and job["status"] in ("completed", "failed"):
+            continue
+        try:
+            datetime.fromisoformat(job.get(key))
+            result[key] = job[key]
+        except (TypeError, ValueError):
+            pass
+    seconds = job.get("expected_seconds")
+    if job["status"] not in ("completed", "failed") and type(seconds) is int and seconds > 0:
+        result["expected_seconds"] = seconds
     workflow = job.get("workflow") or {}
     if isinstance(workflow, dict) and workflow.get("state") in {
         "waiting_capacity",
