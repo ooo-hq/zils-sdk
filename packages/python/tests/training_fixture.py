@@ -48,6 +48,7 @@ ROUND = "33333333-3333-4333-8333-333333333333"
 def training_server():
     class Fixture:
         jobs = {}
+        models = []  # GET /v1/jobs repeats ready models here, as the service does
         objects = {}
         calls = []
         drop_create = False
@@ -116,7 +117,9 @@ def training_server():
             if self.command == "GET" and path == "/v1/config":
                 return self.reply(200, fixture.session["config"])
             if self.command == "GET" and path == "/v1/jobs":
-                return self.reply(200, {"jobs": list(fixture.jobs.values()), "models": []})
+                return self.reply(
+                    200, {"jobs": list(fixture.jobs.values()), "models": fixture.models}
+                )
             if self.command == "POST" and path == "/v1/jobs":
                 body = json.loads(raw)
                 if fixture.create_error:
