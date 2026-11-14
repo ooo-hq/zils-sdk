@@ -66,7 +66,9 @@ blindly.
 ## 6. Wait for it to finish (train_status)
 Nothing notifies you or the user when training ends; check train_status. A job moves through validating,
 awaiting_approval (waiting for a training worker), queued, running and evaluating to completed or failed.
-Training usually takes a few minutes once a worker starts it; waiting for a worker can add more. Give the user
+Most jobs take 5 to 25 minutes once a worker starts them; waiting for a worker comes on top and cannot be
+predicted. train_status shows expected_seconds, the estimate for this job, and then started_at and a rough
+expected_finish_at (UTC): tell the user those rather than guessing, and say they are estimates. Give the user
 the job id so they can follow it on the Training page at zils.ai/train, and check back rather than polling
 nonstop.
 

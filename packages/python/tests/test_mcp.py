@@ -161,6 +161,17 @@ class McpTests(unittest.TestCase):
                 self.assertIn(job_id, json.dumps(listed.structuredContent))
                 status = await session.call_tool("train_status", {"job_id": job_id})
                 self.assertEqual(status.structuredContent["id"], job_id)
+                # The service repeats ready models after the jobs; an agent sees each job once,
+                # newest first, and only the latest unless it asks for more.
+                older = {**fixture.jobs[job_id], "id": "22222222-2222-4222-8222-222222222222"}
+                fixture.models = [fixture.jobs[job_id], older]
+                listed = (await session.call_tool("train_list", {})).structuredContent
+                self.assertEqual([job["id"] for job in listed["jobs"]], [job_id, older["id"]])
+                self.assertEqual(listed["total"], 2)
+                self.assertNotIn("models", listed)
+                latest = (await session.call_tool("train_list", {"limit": 1})).structuredContent
+                self.assertEqual([job["id"] for job in latest["jobs"]], [job_id])
+                self.assertEqual(latest["total"], 2)
                 cancelled = await session.call_tool("train_cancel", {"job_id": job_id})
                 self.assertTrue(cancelled.structuredContent["cancelled"])
                 bad = await session.call_tool("train_status", {"job_id": "../private-secret"})
