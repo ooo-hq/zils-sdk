@@ -1,6 +1,6 @@
 {
   "name": "@zils/sdk",
-  "version": "0.4.22",
+  "version": "0.4.23",
   "description": "Typed JavaScript and TypeScript client for Zils decisions",
   "license": "MIT",
   "keywords": ["zils", "sdk", "typescript", "llm", "ai", "classification", "text-classification", "decision-models", "calibration", "fine-tuning"],
