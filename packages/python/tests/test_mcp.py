@@ -46,6 +46,20 @@ class McpTests(unittest.TestCase):
 
         asyncio.run(asyncio.wait_for(run(), timeout=25))
 
+    def test_instructions_name_the_npx_form_of_commands(self):
+        # A user who added the server with npx may have no zils command on PATH.
+        async def run():
+            params = StdioServerParameters(
+                command=sys.executable,
+                args=["-m", "zils_sdk.mcp"],
+                env=self.env(tempfile.mkdtemp()),
+            )
+            async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
+                return (await session.initialize()).instructions
+
+        instructions = asyncio.run(asyncio.wait_for(run(), timeout=25))
+        self.assertIn("npx -y @zils/cli login", instructions)
+
     def test_stdio_tools_call_real_gateway_and_reject_unknown_arguments(self):
         with tempfile.TemporaryDirectory() as directory, api() as service:
             env = self.env(directory)

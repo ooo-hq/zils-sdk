@@ -51,8 +51,9 @@ def build_server():
         "Before training a model, read train_guide: it lists what to agree with the user, including decisions "
         "made inside the user's own program (fit_scan finds them, fit_run measures a model on logged ones). "
         "Training tools "
-        "need the user's browser account login (zils login). Decisions and training may consume "
-        "paid credit. No automatic retries.",
+        "need the user's browser account login (zils login). When the user has no zils command, every zils "
+        "command runs as npx -y @zils/cli instead, for example npx -y @zils/cli login. Decisions and training "
+        "may consume paid credit. No automatic retries.",
         log_level="WARNING",
     )
 
