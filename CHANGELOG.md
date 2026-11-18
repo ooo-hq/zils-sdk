@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.23 — 2026-11-18
+
+- The MCP server's instructions say every `zils` command also runs as
+  `npx -y @zils/cli`, for example `npx -y @zils/cli login`. A user who added the
+  server with npx may have no `zils` command, so agents now give both forms when
+  sign-in is missing.
+
 ## 0.4.22 — 2026-11-14
 
 - `train_status` (MCP) and `zils train status --json` say when a job was created,
